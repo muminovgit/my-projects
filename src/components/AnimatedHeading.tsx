@@ -26,7 +26,7 @@ export default function AnimatedHeading({
   return (
     <h1 className={className} style={style}>
       {lines.map((line, lineIndex) => (
-        <span key={lineIndex} className="block">
+        <span key={lineIndex} className="block" style={{ whiteSpace: 'nowrap' }}>
           {line.split('').map((char, charIndex) => {
             const delay =
               lineIndex * line.length * CHAR_DELAY + charIndex * CHAR_DELAY
