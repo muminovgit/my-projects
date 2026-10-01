@@ -13,8 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai import AIService, TourDraft
 from bot.db.models import BookingStatus, TourCategory
-from bot.db.repo import add_tour, set_booking_status
+from bot.db.repo import add_tour, set_booking_status, set_setting
 from bot.filters import IsAdmin
+from bot.notify import ADMIN_GROUP_KEY
 from bot.keyboards import AdminCb, AiTourCb, CategoryCb, ai_tour_kb, categories_kb
 from bot.texts import t
 
@@ -38,6 +39,15 @@ class AddTour(StatesGroup):
     seats = State()
 
 
+@router.message(Command("setgroup"), F.chat.type.in_({"group", "supergroup"}))
+async def set_group(message: Message, session: AsyncSession) -> None:
+    await set_setting(session, ADMIN_GROUP_KEY, str(message.chat.id))
+    await message.answer(
+        "✅ Shu guruh admin guruhi qilib belgilandi. Endi yangi leadlar va bronlar shu yerga keladi, "
+        "guruh a'zolari bronlarni tasdiqlashi yoki rad etishi mumkin."
+    )
+
+
 @router.message(Command("admin"))
 async def admin_help(message: Message) -> None:
     await message.answer(
@@ -45,8 +55,9 @@ async def admin_help(message: Message) -> None:
         "/addtour — yangi tur qo'shish (qadamma-qadam)\n"
         "/aitour <tavsif> — AI turni o'zi yozib beradi, masalan:\n"
         "  /aitour Dubay 5 kun, 15.11.2026 dan, 650 USD, 20 joy, mehmonxona va aviachipta bilan\n"
-        "/cancel — joriy amalni bekor qilish\n\n"
-        "Yangi bronlar shu chatga tasdiqlash tugmalari bilan keladi."
+        "/cancel — joriy amalni bekor qilish\n"
+        "/setgroup — (guruh ichida yozing) leadlar va bronlar shu guruhga keladi\n\n"
+        "Guruh ulanmagan bo'lsa, leadlar va bronlar shu chatga keladi."
     )
 
 

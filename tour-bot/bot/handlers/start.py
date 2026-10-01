@@ -11,6 +11,7 @@ from bot.keyboards import LangCb, lang_kb, main_menu
 from bot.texts import all_variants, t
 
 router = Router(name="start")
+router.message.filter(F.chat.type == "private")
 
 
 @router.message(CommandStart())

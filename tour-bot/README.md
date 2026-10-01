@@ -18,6 +18,16 @@ Turlarni ko'rsatish, bron qilish va mijoz savollariga AI orqali javob berish uch
   `/aitour <qisqa tavsif>` (AI turni 3 tilda to'liq yozib beradi, admin "Saqlash" ni bosadi), `/cancel`
 - Bo'sh joylar hisoblanadi: kutilayotgan va tasdiqlangan bronlar joy egallaydi, rad etilganlari bo'shatadi
 
+## Admin guruhi (leadlar va bronlar uchun)
+
+1. Telegram'da yangi guruh yarating va menejerlarni qo'shing.
+2. Guruhga @maketour_bot ni a'zo qilib qo'shing.
+3. `ADMIN_IDS` dagi admin guruhda `/setgroup` deb yozadi.
+
+Shundan keyin yangi leadlar (ismi, raqami, nima xohlashi) va bronlar shu guruhga keladi, guruh a'zolari bronni
+tasdiqlashi yoki rad etishi mumkin. Guruh ulanmagan bo'lsa yoki bot guruhdan chiqarilsa, xabarlar adminning
+shaxsiy chatiga keladi. Bot guruhdagi oddiy suhbatlarga javob bermaydi.
+
 ## Ishga tushirish
 
 ```bash

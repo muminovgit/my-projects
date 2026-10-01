@@ -10,6 +10,7 @@ from bot.keyboards import CategoryCb, TourCb, categories_kb, tour_kb, tours_kb
 from bot.texts import all_variants, t
 
 router = Router(name="tours")
+router.message.filter(F.chat.type == "private")
 
 
 def format_tour(lang: str, tour: Tour, free: int) -> str:

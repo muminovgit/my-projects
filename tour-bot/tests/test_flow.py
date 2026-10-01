@@ -80,21 +80,22 @@ class Harness:
     def _user(self, uid):
         return User(id=uid, is_bot=False, first_name=f"User{uid}", username=f"u{uid}")
 
-    def _msg(self, uid, text=None, **kw):
-        return Message(message_id=1, date=datetime.now(), chat=Chat(id=uid, type="private"), from_user=self._user(uid), text=text, **kw)
+    def _msg(self, uid, text=None, chat_id=None, **kw):
+        chat = Chat(id=chat_id, type="supergroup") if chat_id else Chat(id=uid, type="private")
+        return Message(message_id=1, date=datetime.now(), chat=chat, from_user=self._user(uid), text=text, **kw)
 
     async def send(self, text, uid=USER_ID, **kw):
         self.update_id += 1
         await self.dp.feed_update(self.bot, Update(update_id=self.update_id, message=self._msg(uid, text, **kw)))
 
-    async def press(self, data, uid=USER_ID, text="x"):
+    async def press(self, data, uid=USER_ID, text="x", chat_id=None):
         self.update_id += 1
         cb = CallbackQuery(
             id=str(self.update_id),
             from_user=self._user(uid),
             chat_instance="ci",
             data=data.pack(),
-            message=self._msg(uid, text),
+            message=self._msg(uid, text, chat_id=chat_id),
         )
         await self.dp.feed_update(self.bot, Update(update_id=self.update_id, callback_query=cb))
 
@@ -261,3 +262,50 @@ async def test_slow_ai_times_out_and_goes_to_admin(hai, sessionmaker, monkeypatc
     await hai.send("Misrga tur tuzib bering")
     assert "menejerga" in hai.fake.texts_to(USER_ID)[-1]
     assert "Misrga tur tuzib bering" in hai.fake.texts_to(ADMIN_ID)[-1]
+
+
+GROUP_ID = -100500
+MEMBER_ID = 7007  # in the admin group but not in ADMIN_IDS
+
+
+async def test_admin_group_gets_leads_and_bookings(hai, sessionmaker):
+    await hai.send("/setgroup", uid=MEMBER_ID, chat_id=GROUP_ID)  # non-admin: ignored
+    assert hai.fake.texts_to(GROUP_ID) == []
+    await hai.send("/setgroup", uid=ADMIN_ID, chat_id=GROUP_ID)
+    assert "admin guruhi" in hai.fake.texts_to(GROUP_ID)[-1]
+
+    hai.ai.next_reply = AssistantReply(reply="Raqamingizni yuboring", is_lead=True, phone="+998901112233", lead_summary="Dubay, 2 kishi")
+    await hai.send("Dubayga boramiz, +998901112233")
+    lead = hai.fake.texts_to(GROUP_ID)[-1]
+    assert "Dubay, 2 kishi" in lead and "+998901112233" in lead
+    assert hai.fake.texts_to(ADMIN_ID) == []
+
+    async with sessionmaker() as s:
+        tour = await add_tour(s, "Xiva", "", 100, 10)
+    await hai.press(TourCb(action="book", tour_id=tour.id))
+    await hai.send("1")
+    await hai.send("+998901112233")
+    await hai.press(ConfirmCb(ok=True))
+    booking_msg = hai.fake.texts_to(GROUP_ID)[-1]
+    assert "Yangi bron #1" in booking_msg
+
+    # any member of the admin group can decide
+    await hai.press(AdminCb(action="ok", booking_id=1), uid=MEMBER_ID, text=booking_msg, chat_id=GROUP_ID)
+    async with sessionmaker() as s:
+        assert (await get_booking(s, 1)).status == BookingStatus.CONFIRMED
+
+
+async def test_bot_ignores_chatter_in_groups(hai, sessionmaker):
+    await hai.send("salom hammaga", uid=MEMBER_ID, chat_id=GROUP_ID)
+    assert hai.ai.calls == [] and hai.fake.texts_to(GROUP_ID) == []
+
+
+async def test_admin_group_from_env(sessionmaker):
+    harness = Harness(sessionmaker, FakeAI())
+    harness.settings.admin_group_id = GROUP_ID
+    harness.ai.next_reply = AssistantReply(reply="ok", is_lead=True, lead_summary="Qiziqdi")
+    try:
+        await harness.send("tur kerak")
+        assert "Qiziqdi" in harness.fake.texts_to(GROUP_ID)[-1]
+    finally:
+        _detach_routers()

@@ -14,10 +14,12 @@ from bot.config import Settings
 from bot.db.models import Lead, User
 from bot.db.repo import add_chat_messages, chat_history, create_lead, recent_lead_exists
 from bot.handlers.booking import normalize_phone
+from bot.notify import notify_admins
 from bot.texts import all_variants, t
 
 log = logging.getLogger(__name__)
 router = Router(name="ai_chat")
+router.message.filter(F.chat.type == "private")
 
 # Researching a tour with web search can take a while; past this the client gets an apology and the admin a lead
 AI_TIMEOUT_SECONDS = 150
@@ -53,9 +55,10 @@ def lead_text(lead: Lead, question: str | None = None) -> str:
     return text
 
 
-async def notify_lead(bot: Bot, settings: Settings, lead: Lead, question: str | None = None) -> None:
-    for admin_id in settings.admin_ids:
-        await bot.send_message(admin_id, lead_text(lead, question))
+async def notify_lead(
+    bot: Bot, session: AsyncSession, settings: Settings, lead: Lead, question: str | None = None
+) -> None:
+    await notify_admins(bot, session, settings, lead_text(lead, question))
 
 
 @router.message(F.text.in_(all_variants("btn_ask")))
@@ -80,7 +83,7 @@ async def chat(
 
     if ai is None:
         lead = await create_lead(session, db_user, "Mijoz savol yubordi (AI o'chiq)", normalize_phone(text))
-        await notify_lead(bot, settings, lead, text)
+        await notify_lead(bot, session, settings, lead, text)
         await message.answer(t(lang, "ai_off"))
         return
 
@@ -94,7 +97,7 @@ async def chat(
         log.exception("AI answer failed")
         await _delete_quietly(wait_note)
         lead = await create_lead(session, db_user, "AI javob bera olmadi, mijozga menejer javob bersin", None)
-        await notify_lead(bot, settings, lead, text)
+        await notify_lead(bot, session, settings, lead, text)
         await message.answer(t(lang, "ai_error"))
         return
 
@@ -110,7 +113,7 @@ async def chat(
     # one lead per conversation window, plus a fresh one when the client finally shares a phone
     if new_phone or not await recent_lead_exists(session, db_user):
         lead = await create_lead(session, db_user, result.lead_summary or "Mijoz turga qiziqmoqda", phone)
-        await notify_lead(bot, settings, lead, text)
+        await notify_lead(bot, session, settings, lead, text)
 
 
 async def _delete_quietly(message: Message) -> None:

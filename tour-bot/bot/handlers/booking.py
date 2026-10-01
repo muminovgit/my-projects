@@ -10,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import Settings
 from bot.db.models import Booking, User
 from bot.db.repo import create_booking, free_seats, get_tour
+from bot.notify import notify_admins
 from bot.keyboards import ConfirmCb, TourCb, admin_booking_kb, confirm_kb, main_menu, phone_kb
 from bot.texts import t
 
 router = Router(name="booking")
+router.message.filter(F.chat.type == "private")
 
 PHONE_RE = re.compile(r"^\+?\d{9,15}$")
 
@@ -128,5 +130,4 @@ async def confirm(
     booking = await create_booking(session, db_user, tour, data["people"], data["phone"])
     await callback.message.answer(t(lang, "booking_sent", id=booking.id), reply_markup=main_menu(lang))
     await callback.answer()
-    for admin_id in settings.admin_ids:
-        await bot.send_message(admin_id, admin_text(booking), reply_markup=admin_booking_kb(booking.id))
+    await notify_admins(bot, session, settings, admin_text(booking), admin_booking_kb(booking.id))

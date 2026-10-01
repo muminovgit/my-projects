@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.db.models import Booking, BookingStatus, ChatMessage, Lead, Tour, TourCategory, User
+from bot.db.models import AppSetting, Booking, BookingStatus, ChatMessage, Lead, Tour, TourCategory, User
 
 
 async def get_or_create_user(session: AsyncSession, tg_id: int, full_name: str, username: str | None) -> User:
@@ -123,3 +123,17 @@ async def create_lead(session: AsyncSession, user: User, summary: str, phone: st
     session.add(lead)
     await session.commit()
     return await session.get(Lead, lead.id)
+
+
+async def get_setting(session: AsyncSession, key: str) -> str | None:
+    row = await session.get(AppSetting, key)
+    return row.value if row else None
+
+
+async def set_setting(session: AsyncSession, key: str, value: str) -> None:
+    row = await session.get(AppSetting, key)
+    if row is None:
+        session.add(AppSetting(key=key, value=value))
+    else:
+        row.value = value
+    await session.commit()
