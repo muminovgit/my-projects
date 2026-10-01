@@ -11,12 +11,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.ai import AIService
 from bot.config import Settings
 from bot.db.models import Lead, User
-from bot.db.repo import add_chat_messages, chat_history, create_lead, list_active_tours, recent_lead_exists
+from bot.db.repo import add_chat_messages, chat_history, create_lead, recent_lead_exists
 from bot.handlers.booking import normalize_phone
 from bot.texts import all_variants, t
 
 log = logging.getLogger(__name__)
 router = Router(name="ai_chat")
+
+
+TELEGRAM_LIMIT = 4000
+
+
+def split_message(text: str, limit: int = TELEGRAM_LIMIT) -> list[str]:
+    """Split a long AI reply into Telegram-sized parts, preferring paragraph breaks."""
+    parts = []
+    while len(text) > limit:
+        cut = text.rfind("\n", 0, limit)
+        if cut <= 0:
+            cut = limit
+        parts.append(text[:cut].strip())
+        text = text[cut:].strip()
+    return parts + [text] if text else parts
 
 
 def lead_text(lead: Lead, question: str | None = None) -> str:
@@ -67,9 +82,8 @@ async def chat(
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     history = await chat_history(session, db_user)
-    tours = await list_active_tours(session)
     try:
-        result = await ai.answer(lang, tours, history, text)
+        result = await ai.answer(lang, history, text)
     except Exception:
         log.exception("AI answer failed")
         lead = await create_lead(session, db_user, "AI javob bera olmadi, mijozga menejer javob bersin", None)
@@ -78,7 +92,8 @@ async def chat(
         return
 
     await add_chat_messages(session, db_user, ("user", text), ("assistant", result.reply))
-    await message.answer(result.reply, parse_mode=None)
+    for chunk in split_message(result.reply):
+        await message.answer(chunk, parse_mode=None)
 
     if not result.is_lead:
         return

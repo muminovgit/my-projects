@@ -5,7 +5,7 @@ from typing import Protocol
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, Field
 
-from bot.db.models import ChatMessage, Tour
+from bot.db.models import ChatMessage
 
 log = logging.getLogger(__name__)
 
@@ -13,10 +13,10 @@ LANG_NAMES = {"uz": "Uzbek (Latin script)", "ru": "Russian", "en": "English"}
 
 
 class AssistantReply(BaseModel):
-    reply: str = Field(description="Message to send to the client, in the client's language")
-    is_lead: bool = Field(description="True when the client wants to book, asks for a call back, or shows clear buying intent")
-    phone: str | None = Field(default=None, description="Client phone number if they shared one in this conversation")
-    lead_summary: str = Field(default="", description="One or two sentences in Uzbek for the manager: what the client wants")
+    reply: str  # message for the client
+    is_lead: bool = False
+    phone: str | None = None
+    lead_summary: str = ""  # for the admin only, never shown to the client
 
 
 class TourDraft(BaseModel):
@@ -41,39 +41,55 @@ class Translation(BaseModel):
 
 
 class AIService(Protocol):
-    async def answer(self, lang: str, tours: list[Tour], history: list[ChatMessage], text: str) -> AssistantReply: ...
+    async def answer(self, lang: str, history: list[ChatMessage], text: str) -> AssistantReply: ...
 
     async def draft_tour(self, request: str) -> TourDraft: ...
 
     async def translate(self, title: str, description: str) -> Translation: ...
 
 
-def catalog_text(tours: list[Tour]) -> str:
-    if not tours:
-        return "There are no active tours right now."
-    lines = []
-    for t in tours:
-        date = t.start_date.strftime("%d.%m.%Y") if t.start_date else "date by agreement"
-        lines.append(
-            f"- [{t.category.value}] {t.title} | {t.price} {t.currency} per person | start: {date} | seats: {t.seats}\n"
-            f"  {t.description}"
-        )
-    return "\n".join(lines)
+CHAT_SYSTEM = """You are a creative travel consultant for a travel agency in Uzbekistan, chatting with a client in Telegram.
 
-
-CHAT_SYSTEM = """You are the assistant of a travel agency's Telegram bot. You answer client questions about tours: \
-destinations, prices, dates, what is included, visas and documents, and help them choose.
+Your job: understand what the client wants (where, when, how many people, budget, interests, departure city) and design \
+a tour tailored to them: a day-by-day route, what to see and do, suggested hotels or areas, flights or transport, \
+season tips, visas and documents, and an approximate per-person price range. Use web search to check current flight \
+routes, visa rules, prices and events instead of guessing, and say clearly that prices are estimates the manager will confirm.
 
 Rules:
 - Reply in {lang_name} unless the client clearly writes in another language; then use that language.
-- Only state prices, dates and seats that are in the catalog below. If something is not in the catalog, say a manager will clarify it.
-- Keep replies short and friendly, suitable for a Telegram chat. Plain text, no markdown.
-- Payment is not taken in the bot: a manager contacts the client to finalize.
-- When the client wants to book, asks for a call, or is clearly ready to buy, set is_lead to true and, if you do not have \
-their phone number yet, ask for it in your reply. They can also use the "Tours" menu button to book directly.
+- Ask one or two clarifying questions when key details are missing, but still offer an idea right away.
+- Plain text for Telegram: no markdown tables, no links unless asked, keep it readable (short paragraphs or simple lists).
+- Payment is not taken in the chat. A manager contacts the client to finalize and book.
+- When the client wants to book, asks for a call, shares a phone number, or is clearly ready to buy, call the \
+notify_manager tool (once per conversation, again only if they share a phone later), then tell them a manager will \
+contact them and, if you do not have their phone yet, ask for it. Never show the client the lead details, \
+the word "lead", or what you sent to the manager."""
 
-Current tour catalog:
-{catalog}"""
+NOTIFY_TOOL = {
+    "name": "notify_manager",
+    "description": (
+        "Send this client to the agency manager as a lead. Only the manager sees it; the client never does. "
+        "Call it when the client wants to book, asks for a call back, shares a phone number, or shows clear buying intent."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "summary": {
+                "type": "string",
+                "description": "2-4 sentences in Uzbek (Latin) for the manager: destination, dates, people, budget, "
+                "the tour you proposed and anything they asked for.",
+            },
+            "phone": {"type": ["string", "null"], "description": "Client phone number if they shared one, else null"},
+        },
+        "required": ["summary", "phone"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
+
+MAX_STEPS = 8
 
 
 class ClaudeAI:
@@ -97,11 +113,48 @@ class ClaudeAI:
             raise RuntimeError(f"Claude returned no usable output (stop_reason={response.stop_reason})")
         return response.parsed_output
 
-    async def answer(self, lang: str, tours: list[Tour], history: list[ChatMessage], text: str) -> AssistantReply:
-        system = CHAT_SYSTEM.format(lang_name=LANG_NAMES.get(lang, LANG_NAMES["uz"]), catalog=catalog_text(tours))
-        messages = [{"role": m.role, "content": m.content} for m in history]
+    async def answer(self, lang: str, history: list[ChatMessage], text: str) -> AssistantReply:
+        system = CHAT_SYSTEM.format(lang_name=LANG_NAMES.get(lang, LANG_NAMES["uz"]))
+        messages: list[dict] = [{"role": m.role, "content": m.content} for m in history]
         messages.append({"role": "user", "content": text})
-        return await self._parse(system, messages, AssistantReply)
+        result = AssistantReply(reply="")
+
+        for _ in range(MAX_STEPS):
+            response = await self.client.beta.messages.create(
+                model=self.model,
+                max_tokens=16000,
+                system=system,
+                messages=messages,
+                tools=[WEB_SEARCH_TOOL, NOTIFY_TOOL],
+                output_config={"effort": "medium"},
+                betas=["server-side-fallback-2026-07-01"],
+                fallbacks="default",
+            )
+            if response.stop_reason == "refusal":
+                raise RuntimeError("Claude declined the request")
+            messages.append({"role": "assistant", "content": response.content})
+
+            if response.stop_reason == "pause_turn":
+                continue  # server-side web search loop paused; resend to resume
+            if response.stop_reason != "tool_use":
+                result.reply = "".join(b.text for b in response.content if b.type == "text").strip()
+                return result
+
+            tool_results = []
+            for block in response.content:
+                if block.type != "tool_use":
+                    continue
+                if block.name == "notify_manager":
+                    result.is_lead = True
+                    result.lead_summary = block.input.get("summary") or ""
+                    result.phone = block.input.get("phone") or result.phone
+                    content = "Sent to the manager."
+                else:
+                    content = f"Unknown tool {block.name}"
+                tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": content})
+            messages.append({"role": "user", "content": tool_results})
+
+        raise RuntimeError("AI conversation did not finish")
 
     async def draft_tour(self, request: str) -> TourDraft:
         system = (

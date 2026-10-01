@@ -7,7 +7,9 @@ Turlarni ko'rsatish, bron qilish va mijoz savollariga AI orqali javob berish uch
 
 - `/start` → til tanlash (o'zbekcha / ruscha / inglizcha) → asosiy menyu
 - **Turlar**: yo'nalish (O'zbekiston bo'ylab, Xorijga, Umra va Haj) → turlar ro'yxati → tur kartochkasi (narx, sana, bo'sh joylar), mijoz tilida
-- **AI yordamchi**: mijoz istalgan savolni yozadi, AI turlar katalogi asosida javob beradi. Mijoz bron qilmoqchi bo'lsa yoki raqamini bersa, adminga **lead** boradi (kim, raqami, nima xohlaydi)
+- **AI yordamchi**: mijoz istaklarini so'rab, internetdan izlanib (reyslar, vizalar, narxlar) unga moslab yangi tur tuzib beradi.
+  Admin qo'shgan turlar AI'ga ta'sir qilmaydi. Mijoz bron qilmoqchi bo'lsa yoki raqamini bersa, **lead faqat adminga** boradi,
+  mijoz uni ko'rmaydi
 - To'lov bot ichida yo'q: menejer mijoz bilan o'zi bog'lanadi
 - **Bron qilish**: necha kishi → telefon (tugma yoki qo'lda) → tasdiqlash
 - Bron adminga **Tasdiqlash / Rad etish** tugmalari bilan boradi, mijozga natija xabari yuboriladi
@@ -31,6 +33,16 @@ python -m bot
 `ANTHROPIC_API_KEY` ni console.anthropic.com dan olasiz. Kalit bo'lmasa bot ishlaydi, faqat AI o'chiq bo'ladi
 va mijoz savollari to'g'ridan-to'g'ri adminga yuboriladi.
 `.env` fayli git'ga tushmaydi, tokenni hech qayerga yubormang.
+
+## Railway'da doimiy ishlatish
+
+1. Railway'da yangi loyiha → **Deploy from GitHub repo** → shu repo.
+2. Servisga **Volume** qo'shing, mount path: `/data`.
+3. **Variables**: `BOT_TOKEN`, `ADMIN_IDS`, `ANTHROPIC_API_KEY` va
+   `DATABASE_URL=sqlite+aiosqlite:////data/tour_bot.db` (ma'lumotlar qayta deploy'da o'chmasligi uchun).
+4. Ishga tushirish buyrug'i `railway.json` da: `python -m bot`.
+
+Bot Railway'da ishlayotganda uni kompyuterda ishga tushirmang: bitta token bilan ikkita bot bir vaqtda ishlay olmaydi.
 
 ## Ma'lumotlar bazasi
 

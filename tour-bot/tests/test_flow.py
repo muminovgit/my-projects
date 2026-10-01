@@ -54,8 +54,8 @@ class FakeAI:
         self.next_reply = AssistantReply(reply="Javob", is_lead=False)
         self.calls = []
 
-    async def answer(self, lang, tours, history, text):
-        self.calls.append((lang, [t.title for t in tours], [(m.role, m.content) for m in history], text))
+    async def answer(self, lang, history, text):
+        self.calls.append((lang, [(m.role, m.content) for m in history], text))
         return self.next_reply
 
     async def draft_tour(self, request):
@@ -206,18 +206,17 @@ async def test_aitour_creates_tour_after_admin_saves(hai, sessionmaker):
 
 
 async def test_ai_answers_and_sends_lead_once(hai, sessionmaker):
-    async with sessionmaker() as s:
-        await add_tour(s, "Samarqand", "", 100, 10)
     await hai.send("Samarqandga tur bormi?")
     assert hai.fake.texts_to(USER_ID)[-1] == "Javob"
     assert hai.fake.texts_to(ADMIN_ID) == []
-    assert hai.ai.calls[0][1] == ["Samarqand"]
 
     hai.ai.next_reply = AssistantReply(reply="Raqamingizni yuboring", is_lead=True, lead_summary="Samarqandga 2 kishi")
     await hai.send("2 kishi bormoqchimiz")
     assert "Samarqandga 2 kishi" in hai.fake.texts_to(ADMIN_ID)[-1]
+    # the lead goes only to the admin; the client sees just the reply
+    assert not any("lead" in t.lower() or "Samarqandga 2 kishi" in t for t in hai.fake.texts_to(USER_ID))
     # history is passed back to the model
-    assert hai.ai.calls[1][2] == [("user", "Samarqandga tur bormi?"), ("assistant", "Javob")]
+    assert hai.ai.calls[1][1] == [("user", "Samarqandga tur bormi?"), ("assistant", "Javob")]
 
     await hai.send("yana bir savol")  # still a lead, but already reported
     assert len(hai.fake.texts_to(ADMIN_ID)) == 1
@@ -234,3 +233,10 @@ async def test_without_ai_questions_go_to_admin(h, sessionmaker):
     assert "Dubayga viza kerakmi?" in h.fake.texts_to(ADMIN_ID)[-1]
     async with sessionmaker() as s:
         assert len(list(await s.scalars(select(Lead)))) == 1
+
+
+async def test_long_ai_reply_is_split(hai, sessionmaker):
+    hai.ai.next_reply = AssistantReply(reply=("1-kun: Dubay bo'ylab sayohat.\n" * 400).strip())
+    await hai.send("Dubayga 7 kunlik tur tuzib bering")
+    parts = hai.fake.texts_to(USER_ID)
+    assert len(parts) > 1 and all(len(p) <= 4096 for p in parts)
