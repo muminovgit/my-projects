@@ -37,7 +37,7 @@ class FakeSession(BaseSession):
             date=datetime.now(),
             chat=Chat(id=chat_id, type="private"),
             text=getattr(method, "text", None) or "x",
-        )
+        ).as_(bot)
 
     async def stream_content(self, *args, **kwargs):
         yield b""
@@ -240,3 +240,24 @@ async def test_long_ai_reply_is_split(hai, sessionmaker):
     await hai.send("Dubayga 7 kunlik tur tuzib bering")
     parts = hai.fake.texts_to(USER_ID)
     assert len(parts) > 1 and all(len(p) <= 4096 for p in parts)
+
+
+async def test_wait_note_shown_then_removed(hai, sessionmaker):
+    await hai.send("Turkiyaga tur bormi?")
+    from aiogram.methods import DeleteMessage
+    texts = hai.fake.texts_to(USER_ID)
+    assert "🔎" in texts[0] and texts[-1] == "Javob"
+    assert any(isinstance(c, DeleteMessage) for c in hai.fake.calls)
+
+
+async def test_slow_ai_times_out_and_goes_to_admin(hai, sessionmaker, monkeypatch):
+    import asyncio
+
+    async def slow(*args):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(ai_chat, "AI_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(hai.ai, "answer", slow)
+    await hai.send("Misrga tur tuzib bering")
+    assert "menejerga" in hai.fake.texts_to(USER_ID)[-1]
+    assert "Misrga tur tuzib bering" in hai.fake.texts_to(ADMIN_ID)[-1]

@@ -1,11 +1,12 @@
 """Free-text messages go to the AI assistant; interested clients become leads for the admin."""
+import asyncio
 import logging
 from html import escape
 
 from aiogram import Bot, F, Router
-from aiogram.enums import ChatAction
 from aiogram.filters import StateFilter
 from aiogram.types import Message
+from aiogram.utils.chat_action import ChatActionSender
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai import AIService
@@ -17,6 +18,9 @@ from bot.texts import all_variants, t
 
 log = logging.getLogger(__name__)
 router = Router(name="ai_chat")
+
+# Researching a tour with web search can take a while; past this the client gets an apology and the admin a lead
+AI_TIMEOUT_SECONDS = 150
 
 
 TELEGRAM_LIMIT = 4000
@@ -80,17 +84,21 @@ async def chat(
         await message.answer(t(lang, "ai_off"))
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     history = await chat_history(session, db_user)
+    wait_note = await message.answer(t(lang, "ai_thinking"))
     try:
-        result = await ai.answer(lang, history, text)
+        # keeps "typing..." visible for the whole time the AI is working
+        async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+            result = await asyncio.wait_for(ai.answer(lang, history, text), AI_TIMEOUT_SECONDS)
     except Exception:
         log.exception("AI answer failed")
+        await _delete_quietly(wait_note)
         lead = await create_lead(session, db_user, "AI javob bera olmadi, mijozga menejer javob bersin", None)
         await notify_lead(bot, settings, lead, text)
         await message.answer(t(lang, "ai_error"))
         return
 
+    await _delete_quietly(wait_note)
     await add_chat_messages(session, db_user, ("user", text), ("assistant", result.reply))
     for chunk in split_message(result.reply):
         await message.answer(chunk, parse_mode=None)
@@ -103,3 +111,10 @@ async def chat(
     if new_phone or not await recent_lead_exists(session, db_user):
         lead = await create_lead(session, db_user, result.lead_summary or "Mijoz turga qiziqmoqda", phone)
         await notify_lead(bot, settings, lead, text)
+
+
+async def _delete_quietly(message: Message) -> None:
+    try:
+        await message.delete()
+    except Exception:
+        log.debug("Could not delete wait note", exc_info=True)

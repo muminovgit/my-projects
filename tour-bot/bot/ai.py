@@ -87,14 +87,14 @@ NOTIFY_TOOL = {
     "strict": True,
 }
 
-WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
+WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search", "max_uses": 3}
 
-MAX_STEPS = 8
+MAX_STEPS = 6
 
 
 class ClaudeAI:
     def __init__(self, api_key: str, model: str):
-        self.client = AsyncAnthropic(api_key=api_key)
+        self.client = AsyncAnthropic(api_key=api_key, timeout=120.0, max_retries=1)
         self.model = model
 
     async def _parse(self, system: str, messages: list[dict], output_format, effort: str = "low"):
@@ -126,7 +126,7 @@ class ClaudeAI:
                 system=system,
                 messages=messages,
                 tools=[WEB_SEARCH_TOOL, NOTIFY_TOOL],
-                output_config={"effort": "medium"},
+                output_config={"effort": "low"},
                 betas=["server-side-fallback-2026-07-01"],
                 fallbacks="default",
             )
