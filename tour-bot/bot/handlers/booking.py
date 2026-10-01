@@ -90,7 +90,7 @@ async def got_phone(message: Message, state: FSMContext, session: AsyncSession, 
         t(
             lang,
             "confirm_booking",
-            title=escape(tour.title),
+            title=escape(tour.title_for(lang)),
             people=data["people"],
             phone=phone,
             total=data["people"] * tour.price,

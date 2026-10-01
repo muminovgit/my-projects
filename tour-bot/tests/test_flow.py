@@ -9,10 +9,12 @@ from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 from bot.__main__ import build_dispatcher
 from bot.config import Settings
-from bot.handlers import admin, booking, start, tours
-from bot.db.models import BookingStatus
-from bot.db.repo import add_tour, get_booking
-from bot.keyboards import AdminCb, ConfirmCb, LangCb, TourCb
+from bot.ai import AssistantReply, TourDraft, Translation
+from bot.handlers import admin, ai_chat, booking, start, tours
+from bot.db.models import BookingStatus, Lead, TourCategory
+from bot.db.repo import add_tour, get_booking, list_active_tours
+from bot.keyboards import AdminCb, AiTourCb, CategoryCb, ConfirmCb, LangCb, TourCb
+from sqlalchemy import select
 
 USER_ID = 1001
 ADMIN_ID = 9001
@@ -47,12 +49,32 @@ class FakeSession(BaseSession):
         return [c.text for c in self.calls if getattr(c, "chat_id", None) == chat_id and getattr(c, "text", None)]
 
 
+class FakeAI:
+    def __init__(self):
+        self.next_reply = AssistantReply(reply="Javob", is_lead=False)
+        self.calls = []
+
+    async def answer(self, lang, tours, history, text):
+        self.calls.append((lang, [t.title for t in tours], [(m.role, m.content) for m in history], text))
+        return self.next_reply
+
+    async def draft_tour(self, request):
+        return TourDraft(
+            category="abroad", title="Dubay 5 kun", description="Tavsif", title_ru="Дубай 5 дней", description_ru="Описание",
+            title_en="Dubai 5 days", description_en="Description", price=650, currency="usd", start_date="15.11.2026", seats=20,
+        )
+
+    async def translate(self, title, description):
+        return Translation(title_ru=f"{title} RU", description_ru="RU", title_en=f"{title} EN", description_en="EN")
+
+
 class Harness:
-    def __init__(self, sessionmaker):
+    def __init__(self, sessionmaker, ai=None):
         self.fake = FakeSession()
         self.bot = Bot("42:TEST", session=self.fake)
         self.settings = Settings(bot_token="42:TEST", admin_ids=[ADMIN_ID], _env_file=None)
-        self.dp = build_dispatcher(self.settings, sessionmaker)
+        self.ai = ai
+        self.dp = build_dispatcher(self.settings, sessionmaker, ai)
         self.update_id = 0
 
     def _user(self, uid):
@@ -77,24 +99,37 @@ class Harness:
         await self.dp.feed_update(self.bot, Update(update_id=self.update_id, callback_query=cb))
 
 
+def _detach_routers():
+    # handler routers are module-level singletons; detach them so the next test can build a fresh dispatcher
+    for r in (admin.router, ai_chat.router, booking.router, start.router, tours.router):
+        r._parent_router = None
+
+
 @pytest.fixture
 def h(sessionmaker):
     yield Harness(sessionmaker)
-    # handler routers are module-level singletons; detach them so the next test can build a fresh dispatcher
-    for r in (admin.router, booking.router, start.router, tours.router):
-        r._parent_router = None
+    _detach_routers()
+
+
+@pytest.fixture
+def hai(sessionmaker):
+    yield Harness(sessionmaker, FakeAI())
+    _detach_routers()
 
 
 async def test_full_booking_flow(h, sessionmaker):
     async with sessionmaker() as s:
-        tour = await add_tour(s, "Samarqand 3 kun", "Registon", 150, 10)
+        tour = await add_tour(s, "Samarqand 3 kun", "Registon", 150, 10, category=TourCategory.DOMESTIC)
 
     await h.send("/start")
     await h.press(LangCb(code="uz"))
     assert any("Assalomu alaykum" in t for t in h.fake.texts_to(USER_ID))
 
     await h.send("🌍 Turlar")
+    assert "yo'nalish" in h.fake.texts_to(USER_ID)[-1]
+    await h.press(CategoryCb(category="domestic"))
     await h.press(TourCb(action="show", tour_id=tour.id))
+    assert "Registon" in h.fake.texts_to(USER_ID)[-1]
     await h.press(TourCb(action="book", tour_id=tour.id))
     await h.send("abc")
     assert "1 dan 10 gacha" in h.fake.texts_to(USER_ID)[-1]
@@ -117,7 +152,19 @@ async def test_russian_user_gets_russian_texts(h, sessionmaker):
     await h.send("/start")
     await h.press(LangCb(code="ru"))
     await h.send("🌍 Туры")
-    assert h.fake.texts_to(USER_ID)[-1] == "Сейчас нет активных туров."
+    await h.press(CategoryCb(category="abroad"))
+    assert h.fake.texts_to(USER_ID)[-1].endswith("Сейчас нет активных туров.")
+
+
+async def test_english_user_sees_translated_tour(h, sessionmaker):
+    async with sessionmaker() as s:
+        tour = await add_tour(s, "Xiva", "Ichan qal'a", 100, 5, title_en="Khiva", description_en="Old town")
+    await h.send("/start")
+    await h.press(LangCb(code="en"))
+    await h.send("🌍 Tours")
+    await h.press(TourCb(action="show", tour_id=tour.id))
+    card = h.fake.texts_to(USER_ID)[-1]
+    assert "Khiva" in card and "Old town" in card and "Free seats" in card
 
 
 async def test_non_admin_cannot_add_tour(h, sessionmaker):
@@ -126,11 +173,64 @@ async def test_non_admin_cannot_add_tour(h, sessionmaker):
 
 
 async def test_admin_adds_tour(h, sessionmaker):
-    for text in ["/addtour", "Xiva", "Ichan qal'a", "3500000 UZS", "15.11.2026", "20"]:
+    await h.send("/addtour", uid=ADMIN_ID)
+    await h.press(CategoryCb(category="pilgrimage"), uid=ADMIN_ID)
+    for text in ["Umra 14 kun", "Makka va Madina", "1500 USD", "15.11.2026", "20"]:
         await h.send(text, uid=ADMIN_ID)
     assert "Tur qo'shildi" in h.fake.texts_to(ADMIN_ID)[-1]
-    await h.send("🌍 Turlar")
     async with sessionmaker() as s:
-        from bot.db.repo import list_active_tours
-        tours = await list_active_tours(s)
-    assert tours[0].title == "Xiva" and tours[0].currency == "UZS" and tours[0].seats == 20
+        tours = await list_active_tours(s, TourCategory.PILGRIMAGE)
+    assert tours[0].title == "Umra 14 kun" and tours[0].currency == "USD" and tours[0].seats == 20
+    assert tours[0].title_ru is None  # no AI configured, no translation
+
+
+async def test_admin_tour_gets_ai_translation(hai, sessionmaker):
+    await hai.send("/addtour", uid=ADMIN_ID)
+    await hai.press(CategoryCb(category="domestic"), uid=ADMIN_ID)
+    for text in ["Xiva", "Ichan qal'a", "100 USD", "-", "5"]:
+        await hai.send(text, uid=ADMIN_ID)
+    async with sessionmaker() as s:
+        tour = (await list_active_tours(s))[0]
+    assert tour.title_ru == "Xiva RU" and tour.title_en == "Xiva EN" and tour.start_date is None
+
+
+async def test_aitour_creates_tour_after_admin_saves(hai, sessionmaker):
+    await hai.send("/aitour Dubay 5 kun 650 USD 20 joy", uid=ADMIN_ID)
+    assert "Dubai 5 days" in hai.fake.texts_to(ADMIN_ID)[-1]
+    async with sessionmaker() as s:
+        assert await list_active_tours(s) == []
+    await hai.press(AiTourCb(save=True), uid=ADMIN_ID)
+    async with sessionmaker() as s:
+        tour = (await list_active_tours(s, TourCategory.ABROAD))[0]
+    assert tour.title_en == "Dubai 5 days" and tour.currency == "USD" and tour.start_date.year == 2026
+
+
+async def test_ai_answers_and_sends_lead_once(hai, sessionmaker):
+    async with sessionmaker() as s:
+        await add_tour(s, "Samarqand", "", 100, 10)
+    await hai.send("Samarqandga tur bormi?")
+    assert hai.fake.texts_to(USER_ID)[-1] == "Javob"
+    assert hai.fake.texts_to(ADMIN_ID) == []
+    assert hai.ai.calls[0][1] == ["Samarqand"]
+
+    hai.ai.next_reply = AssistantReply(reply="Raqamingizni yuboring", is_lead=True, lead_summary="Samarqandga 2 kishi")
+    await hai.send("2 kishi bormoqchimiz")
+    assert "Samarqandga 2 kishi" in hai.fake.texts_to(ADMIN_ID)[-1]
+    # history is passed back to the model
+    assert hai.ai.calls[1][2] == [("user", "Samarqandga tur bormi?"), ("assistant", "Javob")]
+
+    await hai.send("yana bir savol")  # still a lead, but already reported
+    assert len(hai.fake.texts_to(ADMIN_ID)) == 1
+
+    hai.ai.next_reply = AssistantReply(reply="Rahmat", is_lead=True, phone="+998 90 111 22 33", lead_summary="Raqam berdi")
+    await hai.send("+998 90 111 22 33")
+    admin_msgs = hai.fake.texts_to(ADMIN_ID)
+    assert len(admin_msgs) == 2 and "+998901112233" in admin_msgs[-1]
+
+
+async def test_without_ai_questions_go_to_admin(h, sessionmaker):
+    await h.send("Dubayga viza kerakmi?")
+    assert "menejerga" in h.fake.texts_to(USER_ID)[-1]
+    assert "Dubayga viza kerakmi?" in h.fake.texts_to(ADMIN_ID)[-1]
+    async with sessionmaker() as s:
+        assert len(list(await s.scalars(select(Lead)))) == 1

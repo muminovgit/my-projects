@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     bot_token: str
     admin_ids: Annotated[list[int], NoDecode] = []
     database_url: str = "sqlite+aiosqlite:///tour_bot.db"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-opus-5-5"
 
     @field_validator("admin_ids", mode="before")
     @classmethod

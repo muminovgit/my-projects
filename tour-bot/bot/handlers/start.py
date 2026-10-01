@@ -45,5 +45,5 @@ async def my_bookings(message: Message, session: AsyncSession, lang: str) -> Non
         return
     lines = [t(lang, "my_bookings_title")]
     for b in bookings:
-        lines.append(f"#{b.id} · {escape(b.tour.title)} · {b.people} · {t(lang, 'status_' + b.status.value)}")
+        lines.append(f"#{b.id} · {escape(b.tour.title_for(lang))} · {b.people} · {t(lang, 'status_' + b.status.value)}")
     await message.answer("\n".join(lines))
