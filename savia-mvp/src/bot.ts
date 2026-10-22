@@ -118,7 +118,9 @@ export function createBot(token: string) {
 
   bot.on("message:text", (ctx) => {
     if (ctx.message.text.startsWith("/")) return;
-    return createFromMessage(ctx, ctx.message.text, []);
+    return ctx.reply(
+      "Mahsulot qo'shish uchun rasm yuboring va narx/tavsifni rasm izohiga (caption) yozing.\nMasalan: rasm + \"erkaklar kurtkasi, 500 000 so'm\".\nMahsulotlar: /products",
+    );
   });
 
   bot.on("message:voice", (ctx) =>
