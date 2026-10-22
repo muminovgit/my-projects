@@ -58,7 +58,7 @@ export function createServer() {
     const cards = items
       .map((p) => {
         const t = p.translations[lang];
-        const img = p.photo ? `<img loading="lazy" src="/photos/${esc(p.photo)}" alt="">` : `<div class="ph"></div>`;
+        const img = p.photos[0] ? `<img loading="lazy" src="/photos/${esc(p.photos[0])}" alt="">` : `<div class="ph"></div>`;
         return `<a class="card" href="/s/${esc(shop.slug)}/p/${p.id}?lang=${lang}">${img}<div>${esc(t.title)}<div class="price">${esc(priceText(p, lang))}</div></div></a>`;
       })
       .join("");
@@ -76,7 +76,7 @@ export function createServer() {
     const ui = UI[lang];
     const attrs = Object.entries(product.attributes).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ");
     const href = contactHref(shop.contact);
-    const img = product.photo ? `<img src="/photos/${esc(product.photo)}" alt="">` : "";
+    const img = product.photos.map((f) => `<img src="/photos/${esc(f)}" alt="">`).join("");
     const body = `${header(shop, lang, `/s/${esc(shop.slug)}/p/${product.id}`)}<main>
 <p><a href="/s/${esc(shop.slug)}?lang=${lang}">← ${ui.back}</a></p>
 <div class="detail">${img}<div class="in"><h2>${esc(t.title)}</h2><div class="price">${esc(priceText(product, lang))}</div>

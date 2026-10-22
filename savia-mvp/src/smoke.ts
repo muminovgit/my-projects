@@ -7,7 +7,7 @@ const { createServer, esc } = await import("./server.js");
 const shop = getOrCreateShop(1, "Test Shop");
 updateShop(shop.id, { contact: "@tester" });
 const g = await generateProduct({ text: "qizil ko'ylak 180000 so'm" });
-const p = addProduct({ shop_id: shop.id, category: g.category, price: g.price, currency: g.currency, attributes: g.attributes, translations: g.translations, photo: null });
+const p = addProduct({ shop_id: shop.id, category: g.category, price: g.price, currency: g.currency, attributes: g.attributes, translations: g.translations, photos: [] });
 assert.equal(p.price, 180000);
 
 const srv = createServer().listen(0);

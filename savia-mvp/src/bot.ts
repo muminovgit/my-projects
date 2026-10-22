@@ -53,26 +53,33 @@ export function createBot(token: string) {
     if (ok) await ctx.editMessageText("O'chirildi.");
   });
 
-  async function createFromMessage(ctx: any, text: string, photoFileId?: string) {
+  type Img = { id: string; mime: string };
+  const MEDIA = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+  const MAX_IMAGES = 6;
+  const MAX_AI_IMAGES = 4;
+
+  async function createFromMessage(ctx: any, text: string, files: Img[]) {
     const shop = shopOf(ctx);
     await ctx.replyWithChatAction("typing");
-    let photo: string | null = null;
-    let image: Parameters<typeof generateProduct>[0]["image"];
-    if (photoFileId) {
-      const file = await ctx.api.getFile(photoFileId);
+    const photos: string[] = [];
+    const images: NonNullable<Parameters<typeof generateProduct>[0]["images"]> = [];
+    for (const f of files.slice(0, MAX_IMAGES)) {
+      const file = await ctx.api.getFile(f.id);
       const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
       const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length > MAX_PHOTO_BYTES) return void ctx.reply("Rasm juda katta.");
-      photo = `${randomUUID()}.jpg`;
-      writeFileSync(`${DATA_DIR}/photos/${photo}`, buf);
-      image = { base64: buf.toString("base64"), mediaType: "image/jpeg" };
+      if (buf.length > MAX_PHOTO_BYTES) continue;
+      const mediaType = (MEDIA as readonly string[]).includes(f.mime) ? (f.mime as (typeof MEDIA)[number]) : "image/jpeg";
+      const name = `${randomUUID()}.${mediaType.split("/")[1]}`;
+      writeFileSync(`${DATA_DIR}/photos/${name}`, buf);
+      photos.push(name);
+      if (images.length < MAX_AI_IMAGES) images.push({ base64: buf.toString("base64"), mediaType });
     }
     try {
-      const g = await generateProduct({ text, image });
-      const p = addProduct({ shop_id: shop.id, category: g.category, price: g.price, currency: g.currency || "UZS", attributes: g.attributes ?? {}, translations: g.translations, photo });
+      const g = await generateProduct({ text, images });
+      const p = addProduct({ shop_id: shop.id, category: g.category, price: g.price, currency: g.currency || "UZS", attributes: g.attributes ?? {}, translations: g.translations, photos });
       const uz = p.translations.uz;
       await ctx.reply(
-        `Qo'shildi (#${p.id}):\n\n${uz.title}\n${uz.description}\nNarxi: ${p.price ?? "ko'rsatilmagan"} ${p.currency}\n\nKatalog: ${link(shop.slug)}`,
+        `Qo'shildi (#${p.id}, ${photos.length} ta rasm):\n\n${uz.title}\n${uz.description}\nNarxi: ${p.price ?? "ko'rsatilmagan"} ${p.currency}\n\nKatalog: ${link(shop.slug)}`,
         { reply_markup: new InlineKeyboard().text("O'chirish", `del:${p.id}`) },
       );
     } catch (e) {
@@ -81,14 +88,37 @@ export function createBot(token: string) {
     }
   }
 
+  // Telegram sends an album as separate messages sharing media_group_id; merge them into one product.
+  const albums = new Map<string, { files: Img[]; caption: string; ctx: any; timer?: NodeJS.Timeout }>();
+  function collect(ctx: any, file: Img) {
+    const caption: string = ctx.message.caption ?? "";
+    const gid: string | undefined = ctx.message.media_group_id;
+    if (!gid) return createFromMessage(ctx, caption, [file]);
+    let g = albums.get(gid);
+    if (!g) albums.set(gid, (g = { files: [], caption: "", ctx }));
+    g.files.push(file);
+    if (caption) g.caption = caption;
+    clearTimeout(g.timer);
+    g.timer = setTimeout(() => {
+      albums.delete(gid);
+      void createFromMessage(g!.ctx, g!.caption, g!.files);
+    }, 1500);
+  }
+
   bot.on("message:photo", (ctx) => {
     const sizes = ctx.message.photo;
-    return createFromMessage(ctx, ctx.message.caption ?? "", sizes[sizes.length - 1].file_id);
+    return collect(ctx, { id: sizes[sizes.length - 1].file_id, mime: "image/jpeg" });
+  });
+
+  bot.on("message:document", (ctx) => {
+    const d = ctx.message.document;
+    if (!d.mime_type?.startsWith("image/")) return ctx.reply("Faqat rasm yuboring (jpg, png, webp).");
+    return collect(ctx, { id: d.file_id, mime: d.mime_type });
   });
 
   bot.on("message:text", (ctx) => {
     if (ctx.message.text.startsWith("/")) return;
-    return createFromMessage(ctx, ctx.message.text);
+    return createFromMessage(ctx, ctx.message.text, []);
   });
 
   bot.on("message:voice", (ctx) =>

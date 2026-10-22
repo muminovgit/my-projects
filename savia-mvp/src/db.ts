@@ -25,7 +25,7 @@ export interface Product {
   currency: string;
   attributes: Record<string, string>;
   translations: Record<Lang, Translation>;
-  photo: string | null;
+  photos: string[];
 }
 
 export const DATA_DIR = process.env.DATA_DIR ?? "data";
@@ -60,16 +60,20 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 `);
 
+const parsePhotos = (v: string | null): string[] =>
+  !v ? [] : v.startsWith("[") ? JSON.parse(v) : [v];
+
 const toProduct = (r: any): Product => ({
   ...r,
   attributes: JSON.parse(r.attributes),
   translations: JSON.parse(r.translations),
+  photos: parsePhotos(r.photo),
 });
 
 export function getOrCreateShop(tgId: number, displayName: string): Shop {
   const found = db.prepare("SELECT * FROM shops WHERE tg_id = ?").get(tgId) as Shop | undefined;
   if (found) return found;
-  const base = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "shop";
+  const base = displayName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `shop-${Math.random().toString(36).slice(2, 7)}`;
   let slug = base;
   for (let i = 2; db.prepare("SELECT 1 FROM shops WHERE slug = ?").get(slug); i++) slug = `${base}-${i}`;
   const id = db
@@ -94,7 +98,7 @@ export function addProduct(p: Omit<Product, "id">): Product {
     .prepare(
       "INSERT INTO products (shop_id, category, price, currency, attributes, translations, photo) VALUES (?,?,?,?,?,?,?)",
     )
-    .run(p.shop_id, p.category, p.price, p.currency, JSON.stringify(p.attributes), JSON.stringify(p.translations), p.photo)
+    .run(p.shop_id, p.category, p.price, p.currency, JSON.stringify(p.attributes), JSON.stringify(p.translations), p.photos.length ? JSON.stringify(p.photos) : null)
     .lastInsertRowid;
   return getProduct(Number(id))!;
 }

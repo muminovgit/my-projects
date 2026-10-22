@@ -50,20 +50,17 @@ From the seller's note (and photo, if any) return ONLY a JSON object:
    "en": {"title": string, "description": string}
  }
 }
-Rules: never invent facts (sizes, materials, prices, delivery) that the seller did not give or the photo does not clearly show.
+Rules: if a photo is given, trust it for WHAT the product is. If there is no photo and the note is a short or ambiguous word, do NOT guess what the product is: use the seller's own wording as the title and keep the description minimal. Several photos are different views or colors of the same product. Never invent facts (sizes, materials, prices, delivery) that the seller did not give or the photo does not clearly show.
 Descriptions: 2-3 short, natural sentences. Uzbek must be Latin script.`;
 
 export async function generateProduct(input: {
   text: string;
-  image?: { base64: string; mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" };
+  images?: { base64: string; mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif" }[];
 }): Promise<GeneratedProduct> {
   if (!client) return mockProduct(input.text);
   const content: Anthropic.ContentBlockParam[] = [];
-  if (input.image) {
-    content.push({
-      type: "image",
-      source: { type: "base64", media_type: input.image.mediaType, data: input.image.base64 },
-    });
+  for (const img of input.images ?? []) {
+    content.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.base64 } });
   }
   content.push({ type: "text", text: `Seller's note: ${input.text || "(no text, use the photo)"}` });
   return extractJson<GeneratedProduct>(await ask(PRODUCT_SYSTEM, content));
