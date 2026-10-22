@@ -1,4 +1,4 @@
-# Folio MVP
+# Savia MVP
 
 Telegram bot + web storefront. A seller sends a photo and a short note to the bot; Claude writes the product card
 and translates it to Uzbek/Russian/English. Buyers open the shop link and ask each product questions; the AI answers

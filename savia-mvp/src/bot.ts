@@ -17,7 +17,7 @@ export function createBot(token: string) {
   bot.command("start", async (ctx) => {
     const shop = shopOf(ctx);
     await ctx.reply(
-      `Salom! Men Folio botman.\n\nMahsulot qo'shish: rasm yuboring va izohga yozing, masalan:\n"qizil ko'ylak, 42-razmer, 180000 so'm"\n\nAI tavsif yozadi va o'zbek/rus/ingliz tillariga tarjima qiladi.\n\nDo'koningiz: ${link(shop.slug)}\n\nBuyruqlar:\n/products — mahsulotlar\n/name Do'kon nomi\n/contact @username yoki +998...\n/shop — do'kon linki`,
+      `Salom! Men Savia botman.\n\nMahsulot qo'shish: rasm yuboring va izohga yozing, masalan:\n"qizil ko'ylak, 42-razmer, 180000 so'm"\n\nAI tavsif yozadi va o'zbek/rus/ingliz tillariga tarjima qiladi.\n\nDo'koningiz: ${link(shop.slug)}\n\nBuyruqlar:\n/products — mahsulotlar\n/name Do'kon nomi\n/contact @username yoki +998...\n/shop — do'kon linki`,
     );
   });
 

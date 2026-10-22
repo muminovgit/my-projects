@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-process.env.DATA_DIR = `${process.env.TMPDIR ?? "/tmp"}/folio-smoke-${Date.now()}`;
+process.env.DATA_DIR = `${process.env.TMPDIR ?? "/tmp"}/savia-smoke-${Date.now()}`;
 const { addProduct, getOrCreateShop, updateShop } = await import("./db.js");
 const { generateProduct } = await import("./ai.js");
 const { createServer, esc } = await import("./server.js");

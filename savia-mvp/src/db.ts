@@ -31,7 +31,7 @@ export interface Product {
 export const DATA_DIR = process.env.DATA_DIR ?? "data";
 mkdirSync(`${DATA_DIR}/photos`, { recursive: true });
 
-export const db = new Database(`${DATA_DIR}/folio.db`);
+export const db = new Database(`${DATA_DIR}/savia.db`);
 db.pragma("journal_mode = WAL");
 db.exec(`
 CREATE TABLE IF NOT EXISTS shops (
