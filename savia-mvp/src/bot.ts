@@ -5,7 +5,10 @@ import { DATA_DIR, addProduct, deleteProduct, getOrCreateShop, getShopById, list
 import { generateProduct } from "./ai.js";
 import { setSellerNotifier } from "./server.js";
 
-const PUBLIC_URL = (process.env.PUBLIC_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const PUBLIC_URL = (
+  process.env.PUBLIC_URL ??
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : "http://localhost:3000")
+).replace(/\/$/, "");
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
 export function createBot(token: string) {

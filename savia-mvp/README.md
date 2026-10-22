@@ -15,3 +15,10 @@ Without `ANTHROPIC_API_KEY` a mock AI is used; without `BOT_TOKEN` only the stor
 
 ## Not in v1
 Voice input, cart/payments, image agents, PDF catalog, WhatsApp, multi-user shops.
+
+## Deploy on Railway
+1. New Project → Deploy from GitHub repo → this repo, branch `claude/funny-fermi-612v5v`. In Settings set **Root Directory** to `savia-mvp`.
+2. Variables: `BOT_TOKEN`, `ANTHROPIC_API_KEY`, `DATA_DIR=/data`.
+3. Add a **Volume** mounted at `/data` (keeps the SQLite DB and photos across deploys).
+4. Settings → Networking → **Generate Domain**. The bot uses it automatically for shop links (or set `PUBLIC_URL`).
+Run the bot in only one place at a time (stop local copies), or Telegram returns a 409 conflict.
