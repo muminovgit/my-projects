@@ -25,12 +25,13 @@
 <div id="ui">
   <h1>Uy plani — 3D</h1>
   <p>7,60 × 16,50 m · ≈125 m² · sichqoncha bilan aylantiring</p>
-  <button id="bIso" class="on">Izometrik</button>
+  <button id="bEye" class="on">Tashqaridan</button>
+  <button id="bIso">Ichkari (3D)</button>
   <button id="bTop">Yuqoridan</button>
-  <button id="bEye">Tashqaridan</button>
   <br>
   <button id="bWalls">Devorlar: baland</button>
   <button id="bLbl" class="on">Nomlar</button>
+  <button id="bRaw">Remontsiz</button>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -80,12 +81,14 @@ scene.add(ground);
 const mats = {};
 const mat = (c, o = {}) => mats[c + JSON.stringify(o)] ??= new THREE.MeshStandardMaterial({ color: c, roughness: .85, ...o });
 
+let target = scene;
+const floors = [];
 // plan koordinatalari: x -> x, y (plan) -> z
 function box(x, z, w, d, h, color, y0 = 0, o = {}) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, o));
   m.position.set(x + w / 2, y0 + h / 2, z + d / 2);
   m.castShadow = m.receiveShadow = true;
-  scene.add(m);
+  target.add(m);
   return m;
 }
 
@@ -109,7 +112,10 @@ const LBL = {
   'Ovqatlanish xonasi': [2.2, 15.7], 'Oshxona': [5.8, 14.6],
 };
 for (const [n, x, z, w, d, c] of ROOMS) {
-  box(x, z, w, d, 0.05, c);
+  const f = box(x, z, w, d, 0.05, c);
+  f.material = f.material.clone();
+  f.userData.color = c;
+  floors.push(f);
   const el = document.createElement('div');
   el.className = 'lbl';
   el.innerHTML = n === 'Zina' ? n : `${n}<span>${(w * d).toFixed(1)} m²</span>`;
@@ -177,14 +183,13 @@ for (const [cx, cz] of [[0, 0], [4, 0], [W, 0], [0, 3.5], [W, 3.5], [0, 6.5], [4
 }
 
 // kirish eshigi (ochiq) va zinapoya oldidagi ayvoncha
-const entry = box(W - TO / 2 - 0.03, 7.4, 0.06, 1.05, DOOR_H, '#7a4b2a');
-entry.geometry.translate(0, 0, 0.5);
-entry.position.z -= 0.5;
-entry.rotation.y = -Math.PI / 2.6;
 box(W, 7.1, 1.2, 1.7, 0.15, '#b9b4ab');
 box(W + 1.2, 7.1, 0.4, 1.7, 0.08, '#b9b4ab');
 
 // ---------- mebel ----------
+const furniture = new THREE.Group();
+scene.add(furniture);
+target = furniture;
 const WHITE = '#fbfbf8', WOOD = '#8b5e3c', FAB = '#5b7c99', FAB2 = '#9a6a5a';
 function bed(x, z, w, d, c = FAB) {
   box(x, z, w, d, 0.35, WOOD);
@@ -208,8 +213,10 @@ box(0.5, 2.6, 0.5, 0.45, 0.85, WHITE);
 // Yotoqxona 2
 bed(0.5, 4.0, 1.6, 2.0);
 table(2.6, 4.0, 1.1, 0.55); chair(3.15, 4.85);
-// Zina
+// Zina (konstruksiya — remontsiz holatda ham ko'rinadi)
+target = scene;
 for (let i = 0; i < 11; i++) box(0.4, 9.2 - i * 0.25, 1.0, 0.25, 0.18 * (i + 1), '#bfb5a5');
+target = furniture;
 // Hammom
 box(1.75, 6.75, 0.75, 1.4, 0.55, WHITE);
 box(1.85, 6.85, 0.55, 1.2, 0.02, '#a9d3e8', 0.54);
@@ -237,18 +244,215 @@ box(5.3, 15.5, 1.3, 0.6, 0.88, '#e9e5dd'); box(5.3, 15.5, 1.3, 0.6, 0.04, '#3b3b
 box(6.6, 13.25, 0.6, 0.6, 1.8, '#d7dadd');
 box(6.75, 15.4, 0.35, 0.35, 0.02, '#9aa7b0', 0.92);
 
+target = scene;
+
+// ---------- tashqi fasad (rasm asosida: sariq g'isht, krem ramkalar, tosh poydevor) ----------
+let seed = 7;
+const rand = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return t;
+}
+const brickTex = canvasTex(256, 256, (g, w, h) => {   // 1,0 × 0,7 m
+  g.fillStyle = '#e9dcc0'; g.fillRect(0, 0, w, h);
+  const bw = 64, bh = 25.6;
+  for (let r = 0; r < 10; r++) for (let i = -1; i < 5; i++) {
+    const x = i * bw + (r % 2 ? bw / 2 : 0), y = r * bh, t = rand();
+    g.fillStyle = `hsl(${34 + t * 10}, ${35 + rand() * 20}%, ${56 + rand() * 16}%)`;
+    g.fillRect(x + 2, y + 2, bw - 4, bh - 4);
+  }
+});
+const stoneTex = canvasTex(256, 160, (g, w, h) => {   // 1,0 × 0,6 m
+  g.fillStyle = '#5f5a54'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 90; i++) {
+    const x = rand() * w, y = rand() * h, r = 9 + rand() * 11;
+    g.fillStyle = `hsl(${25 + rand() * 20}, ${4 + rand() * 10}%, ${52 + rand() * 30}%)`;
+    g.beginPath(); g.ellipse(x, y, r * 1.35, r, rand() * 3, 0, 7); g.fill();
+  }
+});
+const roofTex = canvasTex(64, 64, (g, w, h) => {      // har 0,5 m da profnastil qirrasi
+  g.fillStyle = '#5c6268'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#7d848b'; g.fillRect(0, 0, w, 5);
+  g.fillStyle = '#4a4f55'; g.fillRect(0, 5, w, 3);
+});
+const woodTex = canvasTex(128, 64, (g, w, h) => {
+  g.fillStyle = '#b06a32'; g.fillRect(0, 0, w, h);
+  for (let x = 0; x < w; x += 16) { g.fillStyle = `hsl(25, 55%, ${36 + rand() * 12}%)`; g.fillRect(x, 0, 14, h); }
+});
+function texMat(tex, rx, ry) {
+  const t = tex.clone(); t.needsUpdate = true; t.repeat.set(rx, ry);
+  return new THREE.MeshStandardMaterial({ map: t, roughness: .9 });
+}
+const CREAM = '#efe4c8', FRAME = '#6b3a1f';
+const PLINTH = 0.6;
+const upper = new THREE.Group(); scene.add(upper);
+
+function mbox(x, y, z, w, h, d, material, grp, reg = false) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.set(x + w / 2, y + h / 2, z + d / 2);
+  m.castShadow = m.receiveShadow = true;
+  grp.add(m);
+  if (reg) { m.userData = { y0: y, h }; wallMeshes.push(m); }
+  return m;
+}
+// tomon bo'yicha: s = 'E' (ko'cha, x=W), 'W' (x=0), 'N' (z=0), 'S' (z=H); a..b devor bo'ylab, k — chiqib turishi
+function sbox(s, a, b, y0, y1, k, material, grp, reg, off = 0) {
+  const L = b - a, h = y1 - y0;
+  if (L <= 0.001 || h <= 0.001) return;
+  if (s === 'E') return mbox(W + off, y0, a, k, h, L, material, grp, reg);
+  if (s === 'W') return mbox(-k - off, y0, a, k, h, L, material, grp, reg);
+  if (s === 'N') return mbox(a, y0, -k - off, L, h, k, material, grp, reg);
+  return mbox(a, y0, H + off, L, h, k, material, grp, reg);
+}
+function cladPiece(s, a, b, y0, y1, grp, reg) {
+  if (y0 < PLINTH) sbox(s, a, b, y0, Math.min(y1, PLINTH), 0.12, texMat(stoneTex, (b - a) / 1.0, (Math.min(y1, PLINTH) - y0) / 0.6), grp, reg);
+  if (y1 > PLINTH) { const ya = Math.max(y0, PLINTH); sbox(s, a, b, ya, y1, 0.05, texMat(brickTex, (b - a) / 1.0, (y1 - ya) / 0.7), grp, reg); }
+}
+// teshiklar: [a, b, pastki, yuqori, turi]
+function facade(s, len, y0, y1, ops, grp, reg) {
+  let cur = 0;
+  for (const [a, b, lo, hi, type] of [...ops].sort((p, q) => p[0] - q[0])) {
+    cladPiece(s, cur, a, y0, y1, grp, reg);
+    cladPiece(s, a, b, y0, lo, grp, reg);
+    cladPiece(s, a, b, hi, y1, grp, reg);
+    cur = b;
+    // krem ramka
+    const fr = 0.14, cm = mat(CREAM);
+    sbox(s, a - fr, a, lo - fr, hi + fr, 0.1, cm, grp, reg);
+    sbox(s, b, b + fr, lo - fr, hi + fr, 0.1, cm, grp, reg);
+    sbox(s, a - fr, b + fr, hi, hi + fr, 0.1, cm, grp, reg);
+    if (type === 'w') {
+      sbox(s, a - fr, b + fr, lo - fr, lo, 0.14, cm, grp, reg);
+      // jigarrang yog'och rom + oyna
+      const fm = mat(FRAME);
+      sbox(s, a, a + 0.07, lo, hi, 0.07, fm, grp, reg, -0.12);
+      sbox(s, b - 0.07, b, lo, hi, 0.07, fm, grp, reg, -0.12);
+      sbox(s, a, b, lo, lo + 0.07, 0.07, fm, grp, reg, -0.12);
+      sbox(s, a, b, hi - 0.07, hi, 0.07, fm, grp, reg, -0.12);
+      sbox(s, (a + b) / 2 - 0.035, (a + b) / 2 + 0.035, lo, hi, 0.07, fm, grp, reg, -0.12);
+      if (b - a > 1.2) sbox(s, a, b, hi - 0.45, hi - 0.38, 0.07, fm, grp, reg, -0.12);
+      if (y0 > 2) sbox(s, a, b, lo, hi, 0.02, glass, grp, false, -0.1);
+    }
+  }
+  cladPiece(s, cur, len, y0, y1, grp, reg);
+}
+const Wg = (a, b) => [a, b, SILL, WIN_TOP, 'w'];
+const U0 = 3.1, U1 = 5.9, Wu = (a, b) => [a, b, U0 + 0.9, U0 + 2.1, 'w'];
+
+// 1-qavat
+facade('E', H, 0, WALL_H, [Wg(0.9, 2.3), Wg(4.4, 6.0), [7.4, 8.5, 0, 2.3, 'd'], Wg(10.3, 11.9), Wg(14.1, 15.3)], scene, true);
+facade('W', H, 0, WALL_H, [Wg(4.3, 5.7), Wg(10.5, 11.9), Wg(14.1, 15.5)], scene, true);
+facade('N', W, 0, WALL_H, [Wg(2.6, 3.6), Wg(5.3, 6.6)], scene, true);
+facade('S', W, 0, WALL_H, [Wg(1.6, 3.2)], scene, true);
+// 2-qavat (faqat tashqi ko'rinishda)
+mbox(-0.05, WALL_H, -0.05, W + 0.1, U0 - WALL_H, H + 0.1, mat('#d8d2c4'), upper);
+facade('E', H, U0, U1, [Wu(0.9, 2.3), Wu(4.4, 6.0), Wu(7.5, 8.4), Wu(10.3, 11.9), Wu(14.1, 15.3)], upper);
+facade('W', H, U0, U1, [Wu(4.3, 5.7), Wu(10.5, 11.9), Wu(14.1, 15.5)], upper);
+facade('N', W, U0, U1, [Wu(2.6, 3.6), Wu(5.3, 6.6)], upper);
+facade('S', W, U0, U1, [Wu(1.6, 3.2)], upper);
+// qavatlararo krem belbog' va karniz
+for (const [s, len] of [['E', H], ['W', H], ['N', W], ['S', W]]) {
+  sbox(s, -0.12, len + 0.12, WALL_H, U0, 0.12, mat(CREAM), upper);
+  sbox(s, -0.15, len + 0.15, U1 - 0.18, U1, 0.16, mat(CREAM), upper);
+  // pilyastrlar (ustunlar o'rnida)
+  const ps = s === 'E' || s === 'W' ? [0, 3.5, 13, H] : [0, 4.0, W];
+  for (const p of ps) {
+    const a = Math.max(p - 0.25, -0.12), b = Math.min(p + 0.25, len + 0.12);
+    sbox(s, a, b, PLINTH, WALL_H, 0.12, mat(CREAM), scene, true);
+    sbox(s, a, b, U0, U1, 0.12, mat(CREAM), upper);
+  }
+}
+
+// kirish eshigi: o'ymakor yog'och ikki tavaqali eshik
+const DK = mat('#4a2814'), DK2 = mat('#5e3420');
+for (const [a, b] of [[7.4, 7.95], [7.95, 8.5]]) {
+  mbox(W - 0.22, 0, a + 0.01, 0.08, 2.3, b - a - 0.02, DK, scene);
+  for (const [y0, y1] of [[0.2, 0.9], [1.05, 1.6], [1.75, 2.15]]) mbox(W - 0.15, y0, a + 0.08, 0.04, y1 - y0, b - a - 0.16, DK2, scene);
+}
+for (const z of [7.05, 8.85]) {
+  mbox(W + 0.1, 1.95, z - 0.08, 0.16, 0.28, 0.16, new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#a8742a', emissiveIntensity: .6 }), scene);
+  mbox(W + 0.08, 2.23, z - 0.1, 0.2, 0.04, 0.2, mat('#3a2a1a'), scene);
+}
+
+// tom: kulrang profnastil, ikki nishabli
+const RIDGE = 8.1, ang = Math.atan2(RIDGE - U1, W / 2), Lr = (W / 2 + 0.5) / Math.cos(ang);
+const roofMat = texMat(roofTex, 1, (H + 0.8) / 0.5);
+for (const sgn of [-1, 1]) {
+  const r = new THREE.Mesh(new THREE.BoxGeometry(Lr, 0.08, H + 0.8), roofMat);
+  r.position.set(W / 2 + sgn * (Lr / 2) * Math.cos(ang), RIDGE - (Lr / 2) * Math.sin(ang), H / 2);
+  r.rotation.z = -sgn * ang;
+  r.castShadow = r.receiveShadow = true;
+  upper.add(r);
+  // yog'och karniz osti
+  mbox(sgn < 0 ? -0.5 : W, U1 - 0.3, -0.4, 0.5, 0.06, H + 0.8, texMat(woodTex, 1, (H + 0.8) / 0.5), upper);
+}
+mbox(W / 2 - 0.12, RIDGE - 0.02, -0.4, 0.24, 0.1, H + 0.8, mat('#3d4247'), upper);
+// yon frontonlar (yog'och qoplama)
+const tri = new THREE.Shape([new THREE.Vector2(0, U1), new THREE.Vector2(W, U1), new THREE.Vector2(W / 2, RIDGE - 0.05)]);
+for (const z of [-0.06, H - 0.02]) {
+  const g = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 0.08, bevelEnabled: false }), texMat(woodTex, 0.15, 0.3));
+  g.position.z = z; g.castShadow = true; upper.add(g);
+}
+// ko'cha tomondagi uchburchak mansardalar (rasmdagidek)
+for (const c of [1.6, 7.95, 14.7]) {
+  const hw = 1.1, base = U1, mid = base + 1.0, top = mid + 1.0;
+  const prof = new THREE.Shape([new THREE.Vector2(-hw, base), new THREE.Vector2(hw, base), new THREE.Vector2(hw, mid), new THREE.Vector2(0, top), new THREE.Vector2(-hw, mid)]);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(prof, { depth: 3.2, bevelEnabled: false }), mat(CREAM));
+  // ExtrudeGeometry +z bo'ylab chiqadi; -90° burilganda u ko'chadan uyning ichiga (-x) qarab ketadi
+  body.rotation.y = -Math.PI / 2; body.position.set(W + 0.05, 0, c);
+  body.castShadow = true; upper.add(body);
+  const front = new THREE.Shape([new THREE.Vector2(-hw - 0.1, mid - 0.02), new THREE.Vector2(hw + 0.1, mid - 0.02), new THREE.Vector2(0, top + 0.05)]);
+  const fg = new THREE.Mesh(new THREE.ExtrudeGeometry(front, { depth: 0.06, bevelEnabled: false }), texMat(woodTex, 0.12, 0.3));
+  fg.rotation.y = Math.PI / 2; fg.position.set(W + 0.04, 0, c); upper.add(fg);
+  // mansarda oynasi
+  const fm = mat(FRAME);
+  mbox(W + 0.05, base + 0.12, c - 0.45, 0.04, 0.8, 0.9, fm, upper);
+  mbox(W + 0.08, base + 0.18, c - 0.39, 0.02, 0.68, 0.78, glass, upper);
+  mbox(W + 0.1, base + 0.18, c - 0.02, 0.03, 0.68, 0.04, fm, upper);
+  // mansarda tomi
+  const run = hw + 0.3, rise = run * ((top - mid) / hw), L = Math.hypot(run, rise), a2 = Math.atan2(rise, run);
+  for (const sgn of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.07, L), texMat(roofTex, 0.25, 7));
+    r.position.set(W + 0.45 - 1.8, top + 0.05 - rise / 2, c + sgn * run / 2);
+    r.rotation.x = sgn * a2;
+    r.castShadow = true; upper.add(r);
+  }
+}
+// suv quvurlari
+for (const z of [3.1, 12.65]) {
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, U1 - 0.2, 10), mat('#4b5563'));
+  p.position.set(W + 0.2, (U1 - 0.2) / 2, z); upper.add(p);
+}
+
+// hovli: yo'lak, maysa, butalar, ko'cha
+box(W, -1.5, 3.2, H + 3, 0.02, '#c9c3b8', -0.01);
+for (const [z0, z1] of [[-0.5, 6.6], [9.3, H + 0.5]]) {
+  box(W + 1.0, z0, 1.2, z1 - z0, 0.06, '#9a958c');
+  box(W + 1.08, z0 + 0.08, 1.04, z1 - z0 - 0.16, 0.08, '#6e9a48');
+}
+for (const z of [0.6, 2.9, 5.2, 10.4, 12.8, 15.2]) {
+  box(W + 1.55, z - 0.05, 0.1, 0.1, 0.5, '#5a3d24');
+  const t = new THREE.Mesh(z % 2 > 1 ? new THREE.ConeGeometry(0.4, 1.4, 12) : new THREE.SphereGeometry(0.5, 14, 10), mat(z % 2 > 1 ? '#3f6b35' : '#5b8a3c'));
+  t.position.set(W + 1.6, z % 2 > 1 ? 1.1 : 0.95, z); t.castShadow = true; scene.add(t);
+}
+box(W + 3.2, -6, 9, H + 12, 0.02, '#8e8f8c', -0.012);
+
 // ---------- boshqaruv ----------
-let view = 'iso', showLbl = true;
+let view = 'eye', showLbl = true, low = false;
 const views = {
   iso: [[W + 8, 17, H + 7], [W / 2, 0, H / 2 - 0.5]],
   top: [[W / 2, 26, H / 2 + 0.01], [W / 2, 0, H / 2]],
-  eye: [[W + 17, 5, H + 6], [W / 2, 1, H / 2]],
+  eye: [[W + 15, 4.5, H + 7], [W / 2, 3.2, H / 2]],
 };
 function setView(k) {
   camera.position.set(...views[k][0]);
   controls.target.set(...views[k][1]);
   controls.update();
   view = k;
+  upper.visible = k === 'eye' && !low;
   for (const l of labels) l.visible = showLbl && k !== 'eye';
   for (const [id, v] of [['bIso', 'iso'], ['bTop', 'top'], ['bEye', 'eye']]) document.getElementById(id).classList.toggle('on', v === k);
 }
@@ -256,7 +460,6 @@ document.getElementById('bIso').onclick = () => setView('iso');
 document.getElementById('bTop').onclick = () => setView('top');
 document.getElementById('bEye').onclick = () => setView('eye');
 
-let low = false;
 document.getElementById('bWalls').onclick = (e) => {
   low = !low;
   e.target.textContent = low ? 'Devorlar: kesilgan' : 'Devorlar: baland';
@@ -267,6 +470,15 @@ document.getElementById('bWalls').onclick = (e) => {
     m.visible = top > y0;
     if (m.visible) { m.scale.y = (top - y0) / h; m.position.y = y0 + (top - y0) / 2; }
   }
+  upper.visible = view === 'eye' && !low;
+};
+let raw = false;
+document.getElementById('bRaw').onclick = (e) => {
+  raw = !raw;
+  e.target.classList.toggle('on', raw);
+  furniture.visible = !raw;
+  for (const f of floors) f.material.color.set(raw ? '#9d9a94' : f.userData.color);
+  mat(WALL_C).color.set(raw ? '#b3aea4' : WALL_C);
 };
 document.getElementById('bLbl').onclick = (e) => {
   showLbl = !showLbl;
@@ -275,8 +487,10 @@ document.getElementById('bLbl').onclick = (e) => {
 };
 
 const params = new URLSearchParams(location.search);
-setView(params.get('view') || 'iso');
-if (params.get('walls') !== 'high') document.getElementById('bWalls').click();
+setView(params.get('view') || 'eye');
+if (params.get('walls') === 'low' || (!params.get('walls') && view !== 'eye')) document.getElementById('bWalls').click();
+
+if (params.get('raw')) document.getElementById('bRaw').click();
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
