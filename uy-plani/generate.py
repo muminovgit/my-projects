@@ -9,6 +9,8 @@ S = 60            # 1 metr = 60 px
 M = 130           # chetdagi bo'sh joy (px)
 W, H = 7.6, 16.5  # uy o'lchami (m)
 TO, TI = 0.4, 0.2 # tashqi / ichki devor qalinligi (m)
+B = 3.5           # darvozaxona qismi (eskizda yo'q), uyning shimoliy uchida
+TER = 2.6         # hovli tomondagi ayvon (terassa) chuqurligi
 
 out = []
 
@@ -84,6 +86,44 @@ def build(floor):
     rect(0, H - TO, W, TO, fill=WALL)
     rect(0, 0, TO, H, fill=WALL)
     rect(W - TO, 0, TO, H, fill=WALL)
+
+    # ---------- darvozaxona qismi (y -B..0): 1-qavatda darvoza yo'lagi, 2-qavatda ayvon ----------
+    rect(0, -B, W, B, fill="#e4e1da" if floor == 1 else "#efe3cf")
+    rect(0, -B, W, TO, fill=WALL)
+    rect(0, -B, TO, B, fill=WALL)
+    for cx in (0, W):
+        rect(min(cx, W - 0.4), -B, 0.4, 0.4, fill="#111")
+    if floor == 1:
+        # ko'cha tomondagi darvoza (2,8 m)
+        rect(0, -B + 0.35, TO, 2.8, fill="#e4e1da")
+        line(0.2, -B + 0.35, 1.4, -B + 1.2, stroke="#5a3a24", stroke_width=3)
+        line(0.2, -0.35, 1.4, -1.2, stroke="#5a3a24", stroke_width=3)
+        out.append(f'<path d="M{px(1.0):.1f},{px(-B/2):.1f} L{px(W-0.6):.1f},{px(-B/2):.1f}" stroke="#888" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#arr)"/>')
+        text(W / 2, -B / 2 - 0.35, "Darvozaxona (yo'lak)", size=16, weight=700)
+        text(W / 2, -B / 2 + 0.55, f"{W*B:.1f} m² · ko'chadan hovliga", size=12, fill="#666")
+    else:
+        line(W - 0.1, -B + 0.4, W - 0.1, 0, stroke="#5a3a24", stroke_width=4)  # panjara
+        text(W / 2, -B / 2 - 0.1, "Ayvon (darvoza ustida)", size=16, weight=700)
+        text(W / 2, -B / 2 + 0.22, f"{W*B:.1f} m²", size=13, fill="#666")
+
+    # ---------- hovli tomoni: terassa (1-qavat) / balkon (2-qavat) ----------
+    rect(W, 4.6, TER, 6.8, fill="#e7e2d6" if floor == 1 else "#efe3cf", stroke="#555", stroke_width=1.5)
+    for cz in (6.0, 10.0):
+        out.append(f'<circle cx="{px(W+2.2):.1f}" cy="{px(cz):.1f}" r="{0.17*S:.1f}" fill="#fff" stroke="#333" stroke-width="2"/>')
+    if floor == 1:
+        for z0, z1 in ((3.0, 4.6), (11.4, 13.0)):   # ikki tomondagi zinalar
+            rect(W + 0.4, z0, 2.0, z1 - z0, fill="#f1eee8", stroke="#555", stroke_width=1)
+            for i in range(1, 6):
+                zz = z0 + i * (z1 - z0) / 6
+                line(W + 0.4, zz, W + 2.4, zz, stroke="#888", stroke_width=1)
+        text(W + TER / 2, 8.9, "Ayvon", size=14, weight=700, rot=-90)
+    else:
+        line(W + TER, 4.6, W + TER, 11.4, stroke="#5a3a24", stroke_width=4)
+        line(W, 4.6, W + TER, 4.6, stroke="#5a3a24", stroke_width=4)
+        line(W, 11.4, W + TER, 11.4, stroke="#5a3a24", stroke_width=4)
+        text(W + TER / 2, 9.6, "Balkon", size=14, weight=700, rot=-90)
+    text(-1.8, H / 2, "KO'CHA", size=14, weight=800, fill="#888", rot=-90)
+    text(W + TER + 0.7, 1.5, "HOVLI", size=14, weight=800, fill="#888", rot=-90)
 
 
     def hwall(x1, x2, y):
@@ -162,6 +202,8 @@ def build(floor):
         door("v", W, 7.4, 8.5, -1, "a", "#e9f0e1")       # asosiy kirish eshigi
     else:
         rect(4.0 - TI / 2, 6.6, TI, 0.9, fill="#e9f0e1")  # zal -> dahliz (ochiq o'tish)
+        door("h", 0, 2.0, 2.8, -1, "a", "#efe3cf")       # yotoqxona 4 -> ayvon
+        door("v", W, 7.5, 8.4, 1, "a", "#e9f0e1")        # zal -> balkon
 
 
     # ---------- derazalar ----------
@@ -187,7 +229,7 @@ def build(floor):
     window("v", W, 14.1, 15.3)
     window("h", H, 1.6, 3.2)
     if floor == 2:
-        window("v", W, 7.5, 8.4)
+        pass
 
     # ---------- mebel ----------
     F = dict(fill="#ffffff", stroke="#6b6b6b", stroke_width=1.2, rx=4)
@@ -321,8 +363,8 @@ def build(floor):
 
     if floor == 1:
         # kirish belgisi
-        out.append(f'<path d="M{px(W+1.3):.1f},{px(7.95):.1f} L{px(W+0.45):.1f},{px(7.95):.1f}" stroke="#c0392b" stroke-width="3" marker-end="url(#arrR)"/>')
-        text(W + 1.0, 7.6, "KIRISH", size=13, weight=700, fill="#c0392b")
+        out.append(f'<path d="M{px(W+2.0):.1f},{px(7.95):.1f} L{px(W+0.45):.1f},{px(7.95):.1f}" stroke="#c0392b" stroke-width="3" marker-end="url(#arrR)"/>')
+        text(W + 1.25, 7.6, "KIRISH", size=13, weight=700, fill="#c0392b")
 
 
     # ---------- o'lcham chiziqlari ----------
@@ -342,18 +384,19 @@ def build(floor):
         text(x - 0.15, (y1 + y2) / 2, label, size=13, weight=600, rot=-90)
 
 
-    dim_h(0, 4.0, -0.6, "4,00")
-    dim_h(4.0, W, -0.6, "3,60")
-    dim_h(0, W, -1.2, "7,60")
+    dim_h(0, 4.0, -B - 0.6, "4,00")
+    dim_h(4.0, W, -B - 0.6, "3,60")
+    dim_h(0, W, -B - 1.2, "7,60")
+    dim_v(-B, 0, -0.6, "3,50")
     acc = 0
     for d in (3.5, 3.0, 3.0, 3.5, 3.5):
         dim_v(acc, acc + d, -0.6, f"{d:.2f}".replace(".", ","))
         acc += d
-    dim_v(0, H, -1.3, "16,50")
+    dim_v(-B, H, -1.3, "20,00")
 
     # ---------- yig'ish ----------
-    VW = 2 * M + W * S + 140
-    VH = M + H * S + 210
+    VW = 2 * M + (W + TER) * S + 150
+    VH = M + (H + B) * S + 210
     header = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{VW:.0f}" height="{VH:.0f}" viewBox="0 0 {VW:.0f} {VH:.0f}" font-family="Inter, Segoe UI, Arial, sans-serif">
     <defs>
       <marker id="arr" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker>
@@ -361,10 +404,10 @@ def build(floor):
     </defs>
     <rect width="100%" height="100%" fill="#fbfaf7"/>
     <text x="{VW/2:.0f}" y="38" font-size="24" font-weight="800" text-anchor="middle" fill="#222">UY PLANI — {floor}-QAVAT</text>
-    <text x="{VW/2:.0f}" y="62" font-size="13" text-anchor="middle" fill="#666">7,60 × 16,50 m · umumiy maydon ≈ {W*H:.0f} m² · M 1:100</text>
-    <g transform="translate(0,60)">
+    <text x="{VW/2:.0f}" y="62" font-size="13" text-anchor="middle" fill="#666">7,60 × 20,00 m (darvozaxona bilan) · M 1:100</text>
+    <g transform="translate(0,{60 + B * S:.0f})">
     '''
-    footer = f'''<g transform="translate({px(W)+40:.0f},{px(H)-150:.0f})" font-size="12" fill="#333">
+    footer = f'''<g transform="translate({px(W + TER)+40:.0f},{px(H)-150:.0f})" font-size="12" fill="#333">
       <text font-weight="700">Belgilar</text>
       <rect y="12" width="26" height="8" fill="{WALL}"/><text x="34" y="20">Devor</text>
       <rect y="30" width="26" height="8" fill="#fff" stroke="#222"/><line x1="0" y1="34" x2="26" y2="34" stroke="#3b82c4" stroke-width="2"/><text x="34" y="38">Deraza</text>

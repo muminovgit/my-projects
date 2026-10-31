@@ -24,8 +24,9 @@
 <body>
 <div id="ui">
   <h1>Uy plani — 3D</h1>
-  <p>7,60 × 16,50 m · ≈125 m² · sichqoncha bilan aylantiring</p>
-  <button id="bEye" class="on">Tashqaridan</button>
+  <p>7,60 × 20,00 m · 2 qavat + eski uy · sichqoncha bilan aylantiring</p>
+  <button id="bEye" class="on">Ko'chadan</button>
+  <button id="bYard">Hovlidan</button>
   <button id="bF1">1-qavat</button>
   <button id="bF2">2-qavat</button>
   <button id="bTop">Yuqoridan</button>
@@ -40,6 +41,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const W = 7.6, H = 16.5, TO = 0.4, TI = 0.2;
+const ZN = -3.5, GL = -1.0;  // ZN — darvozaxona qismining shimoliy cheti, GL — hovli/ko'cha sathi (pol 0 da)
 const WALL_H = 2.8, DOOR_H = 2.1, SILL = 0.9, WIN_TOP = 2.1;
 
 const scene = new THREE.Scene();
@@ -65,17 +67,17 @@ controls.enableDamping = true;
 scene.add(new THREE.HemisphereLight('#ffffff', '#b9b2a6', 1.6));
 const sun = new THREE.DirectionalLight('#fff4e0', 2.2);
 sun.position.set(14, 22, 12);
-sun.target.position.set(W / 2, 0, H / 2);
+sun.target.position.set(W / 2, 0, (ZN + H) / 2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 60 });
+Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 });
 sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 // yer
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: '#cfd8c4' }));
 ground.rotation.x = -Math.PI / 2;
-ground.position.set(W / 2, -0.02, H / 2);
+ground.position.set(W / 2, GL - 0.02, H / 2);
 ground.receiveShadow = true;
 scene.add(ground);
 
@@ -127,6 +129,9 @@ addRooms(ROOMS, {
   'Hammom': [3.3, 7.6], 'Dahliz': [2.75, 8.9], 'Yotoqxona 3': [3.0, 11.0], 'Mehmonxona (zal)': [5.8, 8.0],
   'Ovqatlanish xonasi': [2.2, 15.7], 'Oshxona': [5.8, 14.6],
 }, labels, scene);
+BY = GL;
+addRooms([['Darvozaxona', TO, ZN + TO, W - TO, -ZN - TO, '#b9b4ab']], { 'Darvozaxona': [W / 2, ZN / 2] }, labels, scene);
+BY = 0;
 
 // ---------- devorlar ----------
 const wallMeshes = [];
@@ -188,9 +193,6 @@ for (const [cx, cz] of [[0, 0], [4, 0], [W, 0], [0, 3.5], [W, 3.5], [0, 6.5], [4
 }
 columns();
 
-// kirish eshigi (ochiq) va zinapoya oldidagi ayvoncha
-box(W, 7.1, 1.2, 1.7, 0.15, '#b9b4ab');
-box(W + 1.2, 7.1, 0.4, 1.7, 0.08, '#b9b4ab');
 
 // ---------- mebel ----------
 const furniture = new THREE.Group();
@@ -313,7 +315,7 @@ function sbox(s, a, b, y0, y1, k, material, grp, reg, off = 0) {
   if (L <= 0.001 || h <= 0.001) return;
   if (s === 'E') return mbox(W + off, y0, a, k, h, L, material, grp, reg);
   if (s === 'W') return mbox(-k - off, y0, a, k, h, L, material, grp, reg);
-  if (s === 'N') return mbox(a, y0, -k - off, L, h, k, material, grp, reg);
+  if (s === 'N') return mbox(a, y0, ZN - k - off, L, h, k, material, grp, reg);
   return mbox(a, y0, H + off, L, h, k, material, grp, reg);
 }
 function cladPiece(s, a, b, y0, y1, grp, reg) {
@@ -321,8 +323,8 @@ function cladPiece(s, a, b, y0, y1, grp, reg) {
   if (y1 > PLINTH) { const ya = Math.max(y0, PLINTH); sbox(s, a, b, ya, y1, 0.05, texMat(brickTex, (b - a) / 1.0, (y1 - ya) / 0.7), grp, reg); }
 }
 // teshiklar: [a, b, pastki, yuqori, turi]
-function facade(s, len, y0, y1, ops, grp, reg) {
-  let cur = 0;
+function facade(s, len, y0, y1, ops, grp, reg, from = 0) {
+  let cur = from;
   for (const [a, b, lo, hi, type] of [...ops].sort((p, q) => p[0] - q[0])) {
     cladPiece(s, cur, a, y0, y1, grp, reg);
     cladPiece(s, a, b, y0, lo, grp, reg);
@@ -349,29 +351,40 @@ function facade(s, len, y0, y1, ops, grp, reg) {
   cladPiece(s, cur, len, y0, y1, grp, reg);
 }
 const Wg = (a, b) => [a, b, SILL, WIN_TOP, 'w'];
+const DK0 = mat('#4a2814'), DK1 = mat('#5e3420');
 const U0 = 3.1, U1 = 5.9, Wu = (a, b) => [a, b, U0 + 0.9, U0 + 2.1, 'w'];
 
 // 1-qavat
-facade('E', H, 0, WALL_H, [Wg(0.9, 2.3), Wg(4.4, 6.0), [7.4, 8.5, 0, 2.3, 'd'], Wg(10.3, 11.9), Wg(14.1, 15.3)], scene, true);
-facade('W', H, 0, WALL_H, [Wg(4.3, 5.7), Wg(10.5, 11.9), Wg(14.1, 15.5)], scene, true);
-facade('N', W, 0, WALL_H, [Wg(2.6, 3.6), Wg(5.3, 6.6)], scene, true);
-facade('S', W, 0, WALL_H, [Wg(1.6, 3.2)], scene, true);
+// ko'cha — g'arb tomoni (x<0), hovli — sharq tomoni (x>W); poydevor GL dan boshlanadi
+facade('E', H, GL, WALL_H, [Wg(0.9, 2.3), Wg(4.4, 6.0), [7.4, 8.5, 0, 2.3, 'd'], Wg(10.3, 11.9), Wg(14.1, 15.3)], scene, true);
+facade('W', H, GL, WALL_H, [[ZN + 0.35, ZN + 3.15, GL, 2.5, 'd'], Wg(4.3, 5.7), Wg(10.5, 11.9), Wg(14.1, 15.5)], scene, true, ZN);
+facade('N', W, GL, WALL_H, [], scene, true);
+facade('S', W, GL, WALL_H, [Wg(1.6, 3.2)], scene, true);
+// darvozaxona: yo'lak devorlari, poli va darvoza
+mbox(0, GL, ZN, W, WALL_H - GL, TO, mat(WALL_C), scene, true);
+mbox(0, 2.5, ZN + 0.35, TO, WALL_H - 2.5, 2.8, mat(WALL_C), scene, true);
+mbox(0, GL, ZN + 3.15, TO, WALL_H - GL, -ZN - 3.15, mat(WALL_C), scene, true);
+mbox(TO, GL, ZN + TO, W - TO, 0.03, -ZN - TO, mat('#b9b4ab'), scene);
+for (const [a, b] of [[ZN + 0.37, ZN + 1.75], [ZN + 1.75, ZN + 3.13]]) {
+  mbox(0.15, GL, a, 0.1, 2.5 - GL - 0.02, b - a - 0.02, DK0, scene);
+  for (const [y0, y1] of [[GL + 0.25, 0.6], [0.8, 1.6], [1.8, 2.3]]) mbox(0.1, y0, a + 0.12, 0.05, y1 - y0, b - a - 0.26, DK1, scene);
+}
 // 2-qavat (faqat tashqi ko'rinishda)
 // qavatlararo orayopma (zina ustida teshik: x 0–1,5, z 7,3–9,5)
-for (const [x0, z0, x1, z1] of [[-0.05, -0.05, W + 0.05, 7.3], [1.5, 7.3, W + 0.05, 9.5], [-0.05, 9.5, W + 0.05, H + 0.05]])
+for (const [x0, z0, x1, z1] of [[-0.05, ZN - 0.05, W + 0.05, 7.3], [1.5, 7.3, W + 0.05, 9.5], [-0.05, 9.5, W + 0.05, H + 0.05]])
   mbox(x0, WALL_H, z0, x1 - x0, U0 - WALL_H, z1 - z0, mat('#d8d2c4'), upper);
-facade('E', H, U0, U1, [Wu(0.9, 2.3), Wu(4.4, 6.0), Wu(7.5, 8.4), Wu(10.3, 11.9), Wu(14.1, 15.3)], upper, true);
-facade('W', H, U0, U1, [Wu(4.3, 5.7), Wu(10.5, 11.9), Wu(14.1, 15.5)], upper, true);
-facade('N', W, U0, U1, [Wu(2.6, 3.6), Wu(5.3, 6.6)], upper, true);
+facade('E', H, U0, U1, [Wu(0.9, 2.3), Wu(4.4, 6.0), [7.5, 8.4, U0, U0 + 2.2, 'd'], Wu(10.3, 11.9), Wu(14.1, 15.3)], upper, true);
+facade('W', H, U0, U1, [Wu(ZN + 1.0, ZN + 2.5), Wu(4.3, 5.7), Wu(10.5, 11.9), Wu(14.1, 15.5)], upper, true, ZN);
+facade('N', W, U0, U1, [], upper, true);
 facade('S', W, U0, U1, [Wu(1.6, 3.2)], upper, true);
 // qavatlararo krem belbog' va karniz
-for (const [s, len] of [['E', H], ['W', H], ['N', W], ['S', W]]) {
-  sbox(s, -0.12, len + 0.12, WALL_H, U0, 0.12, mat(CREAM), upper);
-  sbox(s, -0.15, len + 0.15, U1 - 0.18, U1, 0.16, mat(CREAM), upper, true);
+for (const [s, a0, len] of [['E', ZN, H], ['W', ZN, H], ['N', 0, W], ['S', 0, W]]) {
+  sbox(s, a0 - 0.12, len + 0.12, WALL_H, U0, 0.12, mat(CREAM), upper);
+  sbox(s, a0 - 0.15, len + 0.15, U1 - 0.18, U1, 0.16, mat(CREAM), upper, true);
   // pilyastrlar (ustunlar o'rnida)
-  const ps = s === 'E' || s === 'W' ? [0, 3.5, 13, H] : [0, 4.0, W];
+  const ps = s === 'E' || s === 'W' ? [ZN, 0, 3.5, 13, H] : [0, 4.0, W];
   for (const p of ps) {
-    const a = Math.max(p - 0.25, -0.12), b = Math.min(p + 0.25, len + 0.12);
+    const a = Math.max(p - 0.25, a0 - 0.12), b = Math.min(p + 0.25, len + 0.12);
     sbox(s, a, b, PLINTH, WALL_H, 0.12, mat(CREAM), scene, true);
     sbox(s, a, b, U0, U1, 0.12, mat(CREAM), upper, true);
   }
@@ -390,66 +403,161 @@ for (const z of [7.05, 8.85]) {
 
 // tom: kulrang profnastil, ikki nishabli
 const RIDGE = 8.1, ang = Math.atan2(RIDGE - U1, W / 2), Lr = (W / 2 + 0.5) / Math.cos(ang);
-const roofMat = texMat(roofTex, 1, (H + 0.8) / 0.5);
+const RL = H - ZN + 0.8, RZ = (ZN + H) / 2;
+const roofMat = texMat(roofTex, 1, RL / 0.5);
 for (const sgn of [-1, 1]) {
-  const r = new THREE.Mesh(new THREE.BoxGeometry(Lr, 0.08, H + 0.8), roofMat);
-  r.position.set(W / 2 + sgn * (Lr / 2) * Math.cos(ang), RIDGE - (Lr / 2) * Math.sin(ang), H / 2);
+  const r = new THREE.Mesh(new THREE.BoxGeometry(Lr, 0.08, RL), roofMat);
+  r.position.set(W / 2 + sgn * (Lr / 2) * Math.cos(ang), RIDGE - (Lr / 2) * Math.sin(ang), RZ);
   r.rotation.z = -sgn * ang;
   r.castShadow = r.receiveShadow = true;
   roof.add(r);
   // yog'och karniz osti
-  mbox(sgn < 0 ? -0.5 : W, U1 - 0.3, -0.4, 0.5, 0.06, H + 0.8, texMat(woodTex, 1, (H + 0.8) / 0.5), roof);
+  mbox(sgn < 0 ? -0.5 : W, U1 - 0.3, ZN - 0.4, 0.5, 0.06, RL, texMat(woodTex, 1, RL / 0.5), roof);
 }
-mbox(W / 2 - 0.12, RIDGE - 0.02, -0.4, 0.24, 0.1, H + 0.8, mat('#3d4247'), roof);
+mbox(W / 2 - 0.12, RIDGE - 0.02, ZN - 0.4, 0.24, 0.1, RL, mat('#3d4247'), roof);
 // yon frontonlar (yog'och qoplama)
 const tri = new THREE.Shape([new THREE.Vector2(0, U1), new THREE.Vector2(W, U1), new THREE.Vector2(W / 2, RIDGE - 0.05)]);
-for (const z of [-0.06, H - 0.02]) {
+for (const z of [ZN - 0.06, H - 0.02]) {
   const g = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 0.08, bevelEnabled: false }), texMat(woodTex, 0.15, 0.3));
   g.position.z = z; g.castShadow = true; roof.add(g);
 }
-// ko'cha tomondagi uchburchak mansardalar (rasmdagidek)
-for (const c of [1.6, 7.95, 14.7]) {
+// uchburchak mansardalar (rasmdagidek): ko'cha tomonida 6 ta, hovli tomonida 2 ta
+function dormer(c, side) {
+  const E = side === 'E', fx = (o, t) => E ? W + o : -o - t;
   const hw = 1.1, base = U1, mid = base + 1.0, top = mid + 1.0;
   const prof = new THREE.Shape([new THREE.Vector2(-hw, base), new THREE.Vector2(hw, base), new THREE.Vector2(hw, mid), new THREE.Vector2(0, top), new THREE.Vector2(-hw, mid)]);
   const body = new THREE.Mesh(new THREE.ExtrudeGeometry(prof, { depth: 3.2, bevelEnabled: false }), mat(CREAM));
-  // ExtrudeGeometry +z bo'ylab chiqadi; -90° burilganda u ko'chadan uyning ichiga (-x) qarab ketadi
-  body.rotation.y = -Math.PI / 2; body.position.set(W + 0.05, 0, c);
+  // ExtrudeGeometry +z bo'ylab chiqadi; ∓90° burilganda tashqi devordan uyning ichiga qarab ketadi
+  body.rotation.y = E ? -Math.PI / 2 : Math.PI / 2; body.position.set(E ? W + 0.05 : -0.05, 0, c);
   body.castShadow = true; roof.add(body);
   const front = new THREE.Shape([new THREE.Vector2(-hw - 0.1, mid - 0.02), new THREE.Vector2(hw + 0.1, mid - 0.02), new THREE.Vector2(0, top + 0.05)]);
   const fg = new THREE.Mesh(new THREE.ExtrudeGeometry(front, { depth: 0.06, bevelEnabled: false }), texMat(woodTex, 0.12, 0.3));
-  fg.rotation.y = Math.PI / 2; fg.position.set(W + 0.04, 0, c); roof.add(fg);
-  // mansarda oynasi
+  fg.rotation.y = E ? Math.PI / 2 : -Math.PI / 2; fg.position.set(E ? W + 0.04 : -0.04, 0, c); roof.add(fg);
   const fm = mat(FRAME);
-  mbox(W + 0.05, base + 0.12, c - 0.45, 0.04, 0.8, 0.9, fm, roof);
-  mbox(W + 0.08, base + 0.18, c - 0.39, 0.02, 0.68, 0.78, glass, roof);
-  mbox(W + 0.1, base + 0.18, c - 0.02, 0.03, 0.68, 0.04, fm, roof);
-  // mansarda tomi
+  mbox(fx(0.05, 0.04), base + 0.12, c - 0.45, 0.04, 0.8, 0.9, fm, roof);
+  mbox(fx(0.08, 0.02), base + 0.18, c - 0.39, 0.02, 0.68, 0.78, glass, roof);
+  mbox(fx(0.1, 0.03), base + 0.18, c - 0.02, 0.03, 0.68, 0.04, fm, roof);
   const run = hw + 0.3, rise = run * ((top - mid) / hw), L = Math.hypot(run, rise), a2 = Math.atan2(rise, run);
   for (const sgn of [-1, 1]) {
     const r = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.07, L), texMat(roofTex, 0.25, 7));
-    r.position.set(W + 0.45 - 1.8, top + 0.05 - rise / 2, c + sgn * run / 2);
+    r.position.set(E ? W + 0.45 - 1.8 : -0.45 + 1.8, top + 0.05 - rise / 2, c + sgn * run / 2);
     r.rotation.x = sgn * a2;
     r.castShadow = true; roof.add(r);
   }
 }
+for (const c of [-1.75, 1.75, 5.25, 8.75, 12.25, 15.25]) dormer(c, 'W');
+for (const c of [1.6, 14.7]) dormer(c, 'E');
 // suv quvurlari
-for (const z of [3.1, 12.65]) {
-  const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, U1 - 0.2, 10), mat('#4b5563'));
-  p.position.set(W + 0.2, (U1 - 0.2) / 2, z); roof.add(p);
+for (const [x, z] of [[-0.2, 0.25], [-0.2, 7.0], [-0.2, 13.25], [W + 0.2, 3.1], [W + 0.2, 12.65]]) {
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, U1 - 0.2 - GL, 10), mat('#4b5563'));
+  p.position.set(x, (U1 - 0.2 + GL) / 2, z); roof.add(p);
 }
 
-// hovli: yo'lak, maysa, butalar, ko'cha
-box(W, -1.5, 3.2, H + 3, 0.02, '#c9c3b8', -0.01);
-for (const [z0, z1] of [[-0.5, 6.6], [9.3, H + 0.5]]) {
-  box(W + 1.0, z0, 1.2, z1 - z0, 0.06, '#9a958c');
-  box(W + 1.08, z0 + 0.08, 1.04, z1 - z0 - 0.16, 0.08, '#6e9a48');
+// ---------- hovli tomoni: baland ayvon (terassa), ikki tomondan zina, ustunlar, 2-qavatda balkon ----------
+const TER = 2.6, TZ0 = 4.6, TZ1 = 11.4;
+mbox(W, GL, TZ0, TER, -GL - 0.05, TZ1 - TZ0, texMat(stoneTex, 6.8, 1.6), scene);
+mbox(W, -0.05, TZ0, TER, 0.05, TZ1 - TZ0, mat('#d9d2c2'), scene);
+for (let i = 0; i < 6; i++) {
+  const top = GL + (i + 1) / 6 * -GL, t = 1.6 / 6;
+  mbox(W + 0.4, GL, 3.0 + i * t, 2.0, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
+  mbox(W + 0.4, GL, TZ1, 2.0, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
 }
-for (const z of [0.6, 2.9, 5.2, 10.4, 12.8, 15.2]) {
-  box(W + 1.55, z - 0.05, 0.1, 0.1, 0.5, '#5a3d24');
+for (const z of [6.0, 10.0]) {
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, U0 - 0.3, 16), mat('#f4f1ea'));
+  col.position.set(W + 2.2, (U0 - 0.3) / 2 + 0.15, z); col.castShadow = true; scene.add(col);
+  mbox(W + 1.98, 0, z - 0.22, 0.44, 0.15, 0.44, mat('#f4f1ea'), scene);
+  mbox(W + 2.0, U0 - 0.45, z - 0.2, 0.4, 0.15, 0.4, mat('#f4f1ea'), scene);
+  // 2-qavatda yog'och ustun (balkondan karnizgacha)
+  mbox(W + 2.12, U0, z - 0.08, 0.16, U1 - U0, 0.16, texMat(woodTex, 0.2, 1), upper);
+}
+// balkon
+mbox(W, WALL_H, TZ0, TER, U0 - WALL_H, TZ1 - TZ0, mat(CREAM), upper);
+const RAIL = texMat(woodTex, 1, 0.2);
+mbox(W + TER - 0.08, U0 + 0.95, TZ0, 0.08, 0.07, TZ1 - TZ0, RAIL, upper);
+for (const z of [TZ0, TZ1 - 0.08]) mbox(W, U0 + 0.95, z, TER, 0.07, 0.08, RAIL, upper);
+for (let z = TZ0 + 0.1; z < TZ1; z += 0.25) mbox(W + TER - 0.06, U0, z, 0.04, 0.95, 0.04, RAIL, upper);
+for (let x = W + 0.1; x < W + TER; x += 0.25) for (const z of [TZ0 + 0.02, TZ1 - 0.06]) mbox(x, U0, z, 0.04, 0.95, 0.04, RAIL, upper);
+mbox(W + TER - 0.15, U1 - 0.3, TZ0 - 0.2, 0.2, 0.3, TZ1 - TZ0 + 0.4, texMat(woodTex, 3, 0.2), roof);  // to'sin
+
+// katta markaziy fronton (hovli tomonda, balkon ustida)
+{
+  const c = (TZ0 + TZ1) / 2, hw = (TZ1 - TZ0) / 2 + 0.2, top = U1 + 2.9, x0 = W - 2.6, x1 = W + TER + 0.4;
+  const triS = new THREE.Shape([new THREE.Vector2(-hw, U1), new THREE.Vector2(hw, U1), new THREE.Vector2(0, top)]);
+  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(triS, { depth: x1 - 0.35 - x0, bevelEnabled: false }), mat(CREAM));
+  body.rotation.y = Math.PI / 2; body.position.set(x0, 0, c); roof.add(body);
+  const face = new THREE.Mesh(new THREE.ExtrudeGeometry(triS, { depth: 0.06, bevelEnabled: false }), texMat(woodTex, 0.4, 0.4));
+  face.rotation.y = Math.PI / 2; face.position.set(x1 - 0.35, 0, c); roof.add(face);
+  // yog'och ferma chiziqlari
+  for (const [z, y, h] of [[c - 0.05, U1, top - U1 - 0.1]]) mbox(x1 - 0.29, y, z, 0.06, h, 0.1, mat('#6b3f1f'), roof);
+  mbox(x1 - 0.29, U1 + 0.9, c - hw * 0.68, 0.06, 0.1, hw * 1.36, mat('#6b3f1f'), roof);
+  const run = hw + 0.35, rise = run * ((top - U1) / hw), L = Math.hypot(run, rise), a2 = Math.atan2(rise, run);
+  for (const sgn of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.08, L), texMat(roofTex, 0.25, 12));
+    r.position.set((x0 + x1) / 2, top + 0.06 - rise / 2, c + sgn * run / 2);
+    r.rotation.x = sgn * a2;
+    r.castShadow = true; roof.add(r);
+  }
+}
+
+// ---------- eski uy (hovlida, darvozaxona yonida) — remontdan keyingi ko'rinishi ----------
+const oldHouse = new THREE.Group(); scene.add(oldHouse);
+{
+  const ox0 = W + 0.5, ox1 = W + 10.5, oz0 = ZN - 6.3, oz1 = ZN - 0.3, top = GL + 3.3;
+  const PL = mat('#f1ece0'), BR = mat('#b98868');
+  mbox(ox0, GL, oz0, ox1 - ox0, 0.7, oz1 - oz0, BR, oldHouse);                       // g'isht poydevor
+  mbox(ox0, GL + 0.7, oz0, ox1 - ox0, top - GL - 0.7, 0.4, PL, oldHouse);            // orqa devor
+  mbox(ox0, GL + 0.7, oz0, 0.4, top - GL - 0.7, oz1 - oz0, PL, oldHouse);
+  mbox(ox1 - 0.4, GL + 0.7, oz0, 0.4, top - GL - 0.7, oz1 - oz0, PL, oldHouse);
+  // old devor: katta oynali "ayvon" devori (rasmdagidek), romlar yangilangan
+  const wx0 = ox0 + 0.6, wx1 = ox1 - 1.6, lo = GL + 0.95, hi = GL + 2.95;
+  mbox(ox0, GL + 0.7, oz1 - 0.4, wx0 - ox0, top - GL - 0.7, 0.4, PL, oldHouse);
+  mbox(wx1, GL + 0.7, oz1 - 0.4, ox1 - wx1, top - GL - 0.7, 0.4, PL, oldHouse);
+  mbox(wx0, GL + 0.7, oz1 - 0.4, wx1 - wx0, lo - GL - 0.7, 0.4, PL, oldHouse);
+  mbox(wx0, hi, oz1 - 0.4, wx1 - wx0, top - hi, 0.4, PL, oldHouse);
+  mbox(wx0, lo, oz1 - 0.25, wx1 - wx0, hi - lo, 0.02, glass, oldHouse);
+  const OF = mat(FRAME);
+  for (let x = wx0; x <= wx1 + 0.01; x += (wx1 - wx0) / 12) mbox(x - 0.035, lo, oz1 - 0.2, 0.07, hi - lo, 0.08, OF, oldHouse);
+  for (const y of [lo, lo + 0.45, hi - 0.6, hi - 0.07]) mbox(wx0, y, oz1 - 0.2, wx1 - wx0, 0.07, 0.08, OF, oldHouse);
+  // eshik
+  mbox(wx1 + 0.3, GL + 0.7, oz1 - 0.2, 0.9, 2.1, 0.08, mat('#4a2814'), oldHouse);
+  // kichik zinapoya va tom
+  mbox(wx1 + 0.2, GL, oz1, 1.1, 0.35, 0.4, mat('#cfc8ba'), oldHouse);
+  mbox(wx1 + 0.2, GL, oz1, 1.1, 0.7, 0.2, mat('#cfc8ba'), oldHouse);
+  const rr = 1.4, ra = Math.atan2(rr, (oz1 - oz0) / 2), rl = ((oz1 - oz0) / 2 + 0.6) / Math.cos(ra);
+  for (const sgn of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(ox1 - ox0 + 0.8, 0.08, rl), texMat(roofTex, 0.25, 20));
+    r.position.set((ox0 + ox1) / 2, top + rr - (rl / 2) * Math.sin(ra), (oz0 + oz1) / 2 + sgn * (rl / 2) * Math.cos(ra));
+    r.rotation.x = sgn * ra; r.castShadow = true; oldHouse.add(r);
+  }
+  const og = new THREE.Shape([new THREE.Vector2(-(oz1 - oz0) / 2, top), new THREE.Vector2((oz1 - oz0) / 2, top), new THREE.Vector2(0, top + rr)]);
+  for (const x of [ox0, ox1 - 0.05]) {
+    const g = new THREE.Mesh(new THREE.ExtrudeGeometry(og, { depth: 0.05, bevelEnabled: false }), PL);
+    g.rotation.y = Math.PI / 2; g.position.set(x, 0, (oz0 + oz1) / 2); oldHouse.add(g);
+  }
+}
+
+// ---------- ko'cha (g'arb tomoni) va hovli ----------
+box(-3.2, ZN - 2, 3.2, H - ZN + 4, 0.02, '#c9c3b8', GL - 0.01);
+for (const [z0, z1] of [[ZN - 1.5, ZN - 0.2], [0.4, 7.6], [8.6, H + 1.5]]) {
+  box(-2.4, z0, 1.2, z1 - z0, 0.06, '#9a958c', GL);
+  box(-2.32, z0 + 0.08, 1.04, z1 - z0 - 0.16, 0.08, '#6e9a48', GL);
+}
+for (const z of [1.2, 3.4, 5.6, 10.0, 12.4, 14.8]) {
+  box(-1.85, z - 0.05, 0.1, 0.1, 0.5, '#5a3d24', GL);
   const t = new THREE.Mesh(z % 2 > 1 ? new THREE.ConeGeometry(0.4, 1.4, 12) : new THREE.SphereGeometry(0.5, 14, 10), mat(z % 2 > 1 ? '#3f6b35' : '#5b8a3c'));
-  t.position.set(W + 1.6, z % 2 > 1 ? 1.1 : 0.95, z); t.castShadow = true; scene.add(t);
+  t.position.set(-1.8, GL + (z % 2 > 1 ? 1.1 : 0.95), z); t.castShadow = true; scene.add(t);
 }
-box(W + 3.2, -6, 9, H + 12, 0.02, '#8e8f8c', -0.012);
+box(-12.2, ZN - 12, 9, H - ZN + 24, 0.02, '#8e8f8c', GL - 0.012);
+box(W, ZN - 7, 14, H - ZN + 9, 0.02, '#cfc6b6', GL - 0.008);   // hovli (shag'al)
+// olma daraxti
+{
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 2.4, 10), mat('#5a3d24'));
+  tr.position.set(W + 9, GL + 1.2, 17.5); tr.castShadow = true; scene.add(tr);
+  for (const [dx, dy, dz, r] of [[0, 2.9, 0, 1.4], [0.9, 2.5, 0.6, 1.0], [-0.8, 2.6, -0.5, 1.0]]) {
+    const cr = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat('#4f7d3a'));
+    cr.position.set(W + 9 + dx, GL + dy, 17.5 + dz); cr.castShadow = true; scene.add(cr);
+  }
+}
 
 // ---------- 2-qavat ichki qismi (1-qavat devorlari ustida) ----------
 const upper2 = new THREE.Group(); scene.add(upper2);
@@ -467,15 +575,21 @@ addRooms([
   ['Oilaviy zal', 4.0, 3.5, 3.6, 9.5, '#c8a77c'],
   ['Bolalar xonasi', 0, 13, 5.0, 3.5, '#d9b88f'],
   ['Kabinet', 5.0, 13, 2.6, 3.5, '#e2d3b0'],
+  ['Ayvon (darvoza ustida)', 0, ZN, W, -ZN, '#c9a77a'],
 ], {
+  'Ayvon (darvoza ustida)': [W / 2, ZN / 2],
   'Yotoqxona 4': [4.4, 2.9], 'Sanuzel': [0.9, 1.8], 'Yotoqxona 5': [3.0, 5.4], 'Zina': [0.95, 6.9],
   'Dahliz': [2.75, 7.1], 'Hammom': [2.3, 8.3], 'Yotoqxona 6': [3.0, 11.0], 'Oilaviy zal': [5.8, 8.0],
   'Bolalar xonasi': [3.6, 14.3], 'Kabinet': [5.9, 14.3],
 }, labels2, upper2);
-wall('h', 0, 0, W, TO, [Wn(2.6, 3.6), Wn(5.3, 6.6)]);
+wall('h', 0, 0, W, TO, [D(2.0, 2.8), Wn(2.9, 3.6), Wn(5.3, 6.6)]);
+wall('h', ZN, 0, W, TO);
+wall('v', 0, ZN + TO, 0, TO, [Wn(ZN + 1.0, ZN + 2.5)]);
+box(W - 0.1, ZN + TO, 0.06, -ZN - TO, 0.06, '#6b3f1f', 0.95);
+for (let z = ZN + 0.5; z < 0; z += 0.25) box(W - 0.09, z, 0.04, 0.04, 0.95, '#6b3f1f');
 wall('h', H - TO, 0, W, TO, [Wn(1.6, 3.2)]);
 wall('v', 0, TO, H - TO, TO, [Wn(4.3, 5.7), Wn(10.5, 11.9), Wn(14.1, 15.5)]);
-wall('v', W - TO, TO, H - TO, TO, [Wn(0.9, 2.3), Wn(4.4, 6.0), Wn(7.5, 8.4), Wn(10.3, 11.9), Wn(14.1, 15.3)]);
+wall('v', W - TO, TO, H - TO, TO, [Wn(0.9, 2.3), Wn(4.4, 6.0), D(7.5, 8.4), Wn(10.3, 11.9), Wn(14.1, 15.3)]);
 wall('h', 3.5 - TI / 2, TO, W - TO, TI, [D(6.3, 7.2)]);
 wall('h', 6.5 - TI / 2, TO, 4.0, TI);
 wall('h', 7.7 - TI / 2, 1.5, 4.0, TI, [D(3.1, 3.8)]);
@@ -532,29 +646,31 @@ BY = 0;
 let view = 'eye', floorShown = 1, showLbl = true, low = false;
 const views = {
   iso: [[W + 8, 17, H + 7], [W / 2, 0, H / 2 - 0.5]],
-  top: [[W / 2, 26, H / 2 + 0.01], [W / 2, 0, H / 2]],
-  eye: [[W + 15, 4.5, H + 7], [W / 2, 3.2, H / 2]],
+  top: [[W / 2, 30, (ZN + H) / 2 + 0.01], [W / 2, 0, (ZN + H) / 2]],
+  eye: [[-16, 3.5, H + 6], [W / 2, 2.4, (ZN + H) / 2]],
+  yard: [[W + 22, 6, H + 7], [W / 2 + 2, 1.8, 3]],
 };
+const ext = () => view === 'eye' || view === 'yard';
 function refresh() {
   for (const m of wallMeshes) {
     const lvl = m.userData.lvl || 1;
-    const cut = low && view !== 'eye' && lvl === floorShown;
+    const cut = low && !ext() && lvl === floorShown;
     if (m.userData.glass) { m.visible = !cut; continue; }
     const { y0, h } = m.userData;
     const top = cut ? Math.min(y0 + h, (lvl === 2 ? U0 : 0) + 1.2) : y0 + h;
     m.visible = top > y0 + 0.001;
     if (m.visible) { m.scale.y = (top - y0) / h; m.position.y = y0 + (top - y0) / 2; }
   }
-  upper.visible = upper2.visible = view === 'eye' || floorShown === 2;
-  roof.visible = view === 'eye';
-  for (const l of labels) l.visible = showLbl && view !== 'eye' && floorShown === 1;
-  for (const l of labels2) l.visible = showLbl && view !== 'eye' && floorShown === 2;
-  for (const [id, on] of [['bEye', view === 'eye'], ['bF1', view !== 'eye' && floorShown === 1], ['bF2', view !== 'eye' && floorShown === 2], ['bTop', view === 'top']])
+  upper.visible = upper2.visible = ext() || floorShown === 2;
+  roof.visible = ext();
+  for (const l of labels) l.visible = showLbl && !ext() && floorShown === 1;
+  for (const l of labels2) l.visible = showLbl && !ext() && floorShown === 2;
+  for (const [id, on] of [['bEye', view === 'eye'], ['bYard', view === 'yard'], ['bF1', !ext() && floorShown === 1], ['bF2', !ext() && floorShown === 2], ['bTop', view === 'top']])
     document.getElementById(id).classList.toggle('on', on);
   document.getElementById('bWalls').textContent = low ? 'Devorlar: kesilgan' : 'Devorlar: baland';
 }
 function setView(k, fl = floorShown) {
-  const dy = fl === 2 && k !== 'eye' ? U0 : 0;
+  const dy = fl === 2 && k !== 'eye' && k !== 'yard' ? U0 : 0;
   camera.position.set(views[k][0][0], views[k][0][1] + dy, views[k][0][2]);
   controls.target.set(views[k][1][0], views[k][1][1] + dy, views[k][1][2]);
   controls.update();
@@ -562,9 +678,10 @@ function setView(k, fl = floorShown) {
   refresh();
 }
 document.getElementById('bEye').onclick = () => setView('eye');
+document.getElementById('bYard').onclick = () => setView('yard');
 document.getElementById('bF1').onclick = () => { low = true; setView('iso', 1); };
 document.getElementById('bF2').onclick = () => { low = true; setView('iso', 2); };
-document.getElementById('bTop').onclick = () => { low = true; setView('top', view === 'eye' ? 1 : floorShown); };
+document.getElementById('bTop').onclick = () => { low = true; setView('top', ext() ? 1 : floorShown); };
 document.getElementById('bWalls').onclick = () => { low = !low; refresh(); };
 let raw = false;
 document.getElementById('bRaw').onclick = (e) => {
@@ -582,7 +699,7 @@ document.getElementById('bLbl').onclick = (e) => {
 
 const params = new URLSearchParams(location.search);
 const v0 = params.get('view') || 'eye';
-low = params.get('walls') === 'low' || (!params.get('walls') && v0 !== 'eye');
+low = params.get('walls') === 'low' || (!params.get('walls') && v0 !== 'eye' && v0 !== 'yard');
 setView(v0, Number(params.get('floor') || 1));
 if (params.get('raw')) document.getElementById('bRaw').click();
 
