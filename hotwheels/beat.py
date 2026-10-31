@@ -3,7 +3,7 @@ import numpy as np
 
 SR = 44100
 BPM = 140
-DUR = 12.05
+DUR = float(sys.argv[2]) if len(sys.argv) > 2 else 12.05
 DROP = 8.6          # toy appears
 GAP = (8.0, DROP)   # beat cuts out during smoke, riser plays
 beat = 60 / BPM
