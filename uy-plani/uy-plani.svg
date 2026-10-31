@@ -65,18 +65,18 @@
 <rect x="586.0" y="406.0" width="156.0" height="408.0" fill="#e7e2d6" stroke="#555" stroke-width="1.5"/>
 <circle cx="718.0" cy="490.0" r="10.2" fill="#fff" stroke="#333" stroke-width="2"/>
 <circle cx="718.0" cy="730.0" r="10.2" fill="#fff" stroke="#333" stroke-width="2"/>
-<rect x="610.0" y="310.0" width="120.0" height="96.0" fill="#f1eee8" stroke="#555" stroke-width="1"/>
-<line x1="610.0" y1="326.0" x2="730.0" y2="326.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="342.0" x2="730.0" y2="342.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="358.0" x2="730.0" y2="358.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="374.0" x2="730.0" y2="374.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="390.0" x2="730.0" y2="390.0" stroke="#888" stroke-width="1"/>
-<rect x="610.0" y="814.0" width="120.0" height="96.0" fill="#f1eee8" stroke="#555" stroke-width="1"/>
-<line x1="610.0" y1="830.0" x2="730.0" y2="830.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="846.0" x2="730.0" y2="846.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="862.0" x2="730.0" y2="862.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="878.0" x2="730.0" y2="878.0" stroke="#888" stroke-width="1"/>
-<line x1="610.0" y1="894.0" x2="730.0" y2="894.0" stroke="#888" stroke-width="1"/>
+<rect x="586.0" y="310.0" width="156.0" height="96.0" fill="#f1eee8" stroke="#555" stroke-width="1"/>
+<line x1="586.0" y1="326.0" x2="742.0" y2="326.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="342.0" x2="742.0" y2="342.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="358.0" x2="742.0" y2="358.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="374.0" x2="742.0" y2="374.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="390.0" x2="742.0" y2="390.0" stroke="#888" stroke-width="1"/>
+<rect x="586.0" y="814.0" width="156.0" height="96.0" fill="#f1eee8" stroke="#555" stroke-width="1"/>
+<line x1="586.0" y1="830.0" x2="742.0" y2="830.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="846.0" x2="742.0" y2="846.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="862.0" x2="742.0" y2="862.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="878.0" x2="742.0" y2="878.0" stroke="#888" stroke-width="1"/>
+<line x1="586.0" y1="894.0" x2="742.0" y2="894.0" stroke="#888" stroke-width="1"/>
 <text x="664.0" y="664.0" font-size="14" font-weight="700" fill="#2b2b2b" text-anchor="middle" transform="rotate(-90 664.0 664.0)">Ayvon</text>
 <text x="22.0" y="625.0" font-size="14" font-weight="800" fill="#888" text-anchor="middle" transform="rotate(-90 22.0 625.0)">KO'CHA</text>
 <text x="784.0" y="220.0" font-size="14" font-weight="800" fill="#888" text-anchor="middle" transform="rotate(-90 784.0 220.0)">HOVLI</text>

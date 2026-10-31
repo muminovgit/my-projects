@@ -459,8 +459,9 @@ mbox(W, GL, TZ0, TER, -GL - 0.05, TZ1 - TZ0, texMat(stoneTex, 6.8, 1.6), scene);
 mbox(W, -0.05, TZ0, TER, 0.05, TZ1 - TZ0, mat('#d9d2c2'), scene);
 for (let i = 0; i < 6; i++) {
   const top = GL + (i + 1) / 6 * -GL, t = 1.6 / 6;
-  mbox(W + 0.4, GL, 3.0 + i * t, 2.0, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
-  mbox(W + 0.4, GL, TZ1, 2.0, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
+  // zina eni ayvon chuqurligiga teng
+  mbox(W, GL, 3.0 + i * t, TER, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
+  mbox(W, GL, TZ1, TER, top - GL, 1.6 - i * t, mat('#cfc8ba'), scene);
 }
 for (const z of [6.0, 10.0]) {
   const col = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, U0 - 0.3, 16), mat('#f4f1ea'));

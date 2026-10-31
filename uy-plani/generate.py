@@ -112,10 +112,10 @@ def build(floor):
         out.append(f'<circle cx="{px(W+2.2):.1f}" cy="{px(cz):.1f}" r="{0.17*S:.1f}" fill="#fff" stroke="#333" stroke-width="2"/>')
     if floor == 1:
         for z0, z1 in ((3.0, 4.6), (11.4, 13.0)):   # ikki tomondagi zinalar
-            rect(W + 0.4, z0, 2.0, z1 - z0, fill="#f1eee8", stroke="#555", stroke_width=1)
+            rect(W, z0, TER, z1 - z0, fill="#f1eee8", stroke="#555", stroke_width=1)  # zina eni = ayvon chuqurligi
             for i in range(1, 6):
                 zz = z0 + i * (z1 - z0) / 6
-                line(W + 0.4, zz, W + 2.4, zz, stroke="#888", stroke_width=1)
+                line(W, zz, W + TER, zz, stroke="#888", stroke_width=1)
         text(W + TER / 2, 8.9, "Ayvon", size=14, weight=700, rot=-90)
     else:
         line(W + TER, 4.6, W + TER, 11.4, stroke="#5a3a24", stroke_width=4)
