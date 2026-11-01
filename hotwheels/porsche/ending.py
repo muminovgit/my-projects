@@ -1,6 +1,6 @@
 """Luxury gold ending overlay for the Porsche premium-reveal video.
 
-usage: python3 ending.py LOGO_IMAGE OUT_DIR
+usage: python3 ending.py LOGO_IMAGE OUT_DIR [--no-cta]
 Renders a 1080x1920 RGBA PNG sequence (24 fps, 5 s).
 """
 import math, os, sys
@@ -74,7 +74,7 @@ def put(canvas, img, cx, cy, alpha=1.0, scale=1.0, blur=0):
     canvas.alpha_composite(img, (int(cx - img.width / 2), int(cy - img.height / 2)))
 
 
-def main(logo_path, out_dir):
+def main(logo_path, out_dir, cta=True):
     os.makedirs(out_dir, exist_ok=True)
     logo = clean_logo(logo_path, width=640)
     f_title = ImageFont.truetype(FONT_B, 62)
@@ -110,12 +110,12 @@ def main(logo_path, out_dir):
         k = ease((t - 1.2) / 0.6)
         put(c, model, W / 2, y_model, alpha=k)
 
-        for i, (img, y) in enumerate(((cta1, y_cta1), (cta2, y_cta2))):
+        for i, (img, y) in enumerate(((cta1, y_cta1), (cta2, y_cta2)) if cta else ()):
             k = ease((t - 1.8 - i * 0.2) / 0.6)
             put(c, img, W / 2, y + (1 - k) * 30, alpha=k)
 
         # pulsing gold chevron
-        if t >= 2.4:
+        if cta and t >= 2.4:
             a = min(1, (t - 2.4) / 0.4) * (0.65 + 0.35 * math.sin((t - 2.4) * 4))
             bob = math.sin((t - 2.4) * 4) * 6
             cy = y_arrow + bob
@@ -126,4 +126,4 @@ def main(logo_path, out_dir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], cta="--no-cta" not in sys.argv[3:])
