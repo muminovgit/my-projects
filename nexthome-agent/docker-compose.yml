@@ -1,0 +1,9 @@
+services:
+  nexthome-agent:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - agent-data:/data
+volumes:
+  agent-data:

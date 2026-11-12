@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nexthome": {
+      "type": "http",
+      "url": "https://api.nexthome.uz/mcp"
+    }
+  }
+}
