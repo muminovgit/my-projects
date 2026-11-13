@@ -11,10 +11,44 @@ Bot Nexthome'ning o'z MCP serveri (`https://api.nexthome.uz/mcp`) orqali, siz be
 
 Nexthome MCP serveri OAuth bilan himoyalangan, shuning uchun Claude'ga to'g'ridan-to'g'ri ulanadi:
 
-- **Claude Code:** shu papkani oching — `.mcp.json` dagi `nexthome` serveri taklif qilinadi. `/mcp` buyrug'i orqali Nexthome akkauntingiz bilan kiring. `nexthome-post` skill'i va `CLAUDE.md` ham shu papkada.
-- **claude.ai / Claude Desktop:** sozlamalardagi connectors bo'limida custom connector qo'shing, URL: `https://api.nexthome.uz/mcp`. Nexthome login oynasi ochiladi.
+Ulanish har bir Claude akkauntiga alohida qilinadi va har kim o'z Nexthome logini bilan kiradi. Shundan keyin Claude'ning o'zidan e'lonlar, moderatsiya, agentlik statistikasi va chatlarni boshqarish mumkin.
 
-Shundan keyin Claude'ning o'zidan e'lonlar, moderatsiya, agentlik statistikasi va chatlarni boshqarish mumkin.
+### claude.ai (brauzer) yoki Claude Desktop
+
+1. [claude.ai/customize/connectors](https://claude.ai/customize/connectors) sahifasini oching.
+2. **Add custom connector** ni bosing.
+3. Quyidagilarni kiriting:
+
+   | Maydon | Qiymat |
+   |---|---|
+   | Name | `Nexthome` |
+   | Remote MCP server URL | `https://api.nexthome.uz/mcp` |
+   | Advanced settings (OAuth Client ID / Secret) | bo'sh qoldiring |
+
+4. **Add** ni bosing, so'ng ro'yxatdagi Nexthome yonida **Connect** ni bosing. Nexthome kirish sahifasi ochiladi: telefon raqam va parol bilan kirib, ruxsat bering.
+5. Yangi chat oching — connector'lar chat boshlanganda yuklanadi.
+
+Sinash uchun yozing:
+
+> Nexthome profilimni ko'rsat.
+
+Menyu nomlari Claude versiyasiga qarab biroz farq qilishi mumkin. Team/Enterprise tarifda custom connector'ni avval tashkilot egasi qo'shishi kerak.
+
+### Claude Code
+
+Shu papkani oching — `.mcp.json` dagi `nexthome` serveri taklif qilinadi. `/mcp` buyrug'i orqali Nexthome akkauntingiz bilan kiring. `nexthome-post` skill'i va `CLAUDE.md` ham shu papkada.
+
+Papkasiz ulash uchun:
+
+```bash
+claude mcp add --transport http nexthome https://api.nexthome.uz/mcp
+```
+
+### ChatGPT
+
+1. **Plugins** sahifasini oching, **+ → Add custom MCP server** ni bosing.
+2. Name: `Nexthome`, Server URL: `https://api.nexthome.uz/mcp`, Authentication: **OAuth**, registratsiya usuli so'ralsa **DCR**.
+3. Plaginni yarating va o'rnating, yangi chatda `@Nexthome` ni tanlang. Birinchi murojaatda Nexthome kirish sahifasi ochiladi.
 
 ## Botni o'rnatish
 
