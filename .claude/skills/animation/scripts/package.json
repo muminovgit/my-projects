@@ -1,0 +1,15 @@
+{
+  "name": "animation-skill-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Render seekable HTML canvas pages to MP4 with Playwright and ffmpeg.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "postinstall": "playwright install chromium",
+    "smoke": "node render.mjs video ../template.html --width 540 --height 960 --out ../out/smoke.mp4"
+  },
+  "dependencies": {
+    "playwright": "1.65.1"
+  }
+}

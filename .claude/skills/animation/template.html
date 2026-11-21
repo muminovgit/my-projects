@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>animation template</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// THE SEEK CONTRACT (read by scripts/render.mjs and scripts/sheet.mjs)
+//   window.FILM  = { width, height, fps, frames }  design size and length
+//   window.seek(f)  draws frame f. Same f gives the same picture, every time.
+//   window.ready    optional Promise: resolve it when fonts and images are loaded.
+// Rules: time comes only from f. No Date.now, no performance.now, no unseeded Math.random.
+// The canvas fills the window; everything is drawn in design units (1080 x 1920 here),
+// so the renderer can capture at any size (a 540 x 960 smoke test or the full 1080 x 1920).
+
+const FILM = { width: 1080, height: 1920, fps: 30, frames: 60 }; // 2 s
+window.FILM = FILM;
+
+// Shot table: start and end in seconds. Shots hand over by motion, never by a fade.
+const SHOTS = [
+  { name: 'moon rises', start: 0.0, end: 1.2 },
+  { name: 'push into the lake', start: 1.0, end: 2.0 }, // overlaps: the camera push carries us in
+];
+
+// Seeded randomness: the same seed gives the same stars on every frame and every render.
+function rng(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const R = rng(7);
+const STARS = Array.from({ length: 160 }, () => ({ x: R() * 1300 - 110, y: R() * 1100, r: 0.6 + R() * 2.2, p: R() * 6.28 }));
+
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const local = (t, s) => clamp((t - s.start) / (s.end - s.start));
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+function draw(f) {
+  const t = f / FILM.fps;
+  const k = canvas.width / FILM.width;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+
+  // Camera: a slow drift all the time, plus the push of shot 2.
+  const push = easeInOut(local(t, SHOTS[1]));
+  const zoom = 1 + 0.02 * Math.sin(t * 0.9) + 0.9 * push;
+  const camY = 40 * Math.sin(t * 0.7) - 620 * push;
+  ctx.translate(540, 960);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-540 + 12 * Math.sin(t * 1.3), -960 + camY);
+
+  // Sky: a lit gradient, not a flat fill.
+  const sky = ctx.createLinearGradient(0, 0, 0, 1920);
+  sky.addColorStop(0, '#0b0f2e'); sky.addColorStop(0.55, '#3a2a6b'); sky.addColorStop(1, '#f08a5d');
+  ctx.fillStyle = sky; ctx.fillRect(-600, -600, 2280, 3120);
+
+  // Stars twinkle (every element moves).
+  for (const s of STARS) {
+    ctx.globalAlpha = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 3 + s.p));
+    ctx.fillStyle = '#fff4d6';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Moon rises with an overshoot, then breathes.
+  const rise = easeInOut(local(t, SHOTS[0]));
+  const my = 1250 - 700 * rise + 8 * Math.sin(t * 2);
+  const glow = ctx.createRadialGradient(540, my, 40, 540, my, 420);
+  glow.addColorStop(0, 'rgba(255,230,180,0.85)'); glow.addColorStop(1, 'rgba(255,230,180,0)');
+  ctx.fillStyle = glow; ctx.fillRect(120, my - 420, 840, 840);
+  ctx.fillStyle = '#fff1d0'; ctx.beginPath(); ctx.arc(540, my, 150, 0, 6.283); ctx.fill();
+
+  // Hills: two layers at different speeds give parallax.
+  for (const [i, col] of ['#2a1b4a', '#140c26'].entries()) {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-600, 1920);
+    for (let x = -600; x <= 1680; x += 40) {
+      const y = 1380 + i * 140 + 90 * Math.sin(x * 0.004 + i * 2 + t * (0.15 + i * 0.2));
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(1680, 2600); ctx.lineTo(-600, 2600); ctx.closePath(); ctx.fill();
+  }
+
+  // Lake with moving reflections: shot 2 pushes the camera down into it.
+  const lake = ctx.createLinearGradient(0, 1700, 0, 2400);
+  lake.addColorStop(0, '#1d2b5e'); lake.addColorStop(1, '#05081a');
+  ctx.fillStyle = lake; ctx.fillRect(-600, 1700, 2280, 900);
+  for (let i = 0; i < 26; i++) {
+    const y = 1720 + i * 26;
+    const w = 260 - i * 7 + 30 * Math.sin(t * 4 + i);
+    ctx.globalAlpha = 0.5 - i * 0.017;
+    ctx.fillStyle = '#ffe2b0';
+    ctx.fillRect(540 - w / 2 + 14 * Math.sin(t * 2.4 + i * 0.8), y, w, 5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+window.seek = (f) => { draw(f); };
+
+// Fonts and images: resolve window.ready once they are loaded (none in this template).
+window.ready = Promise.resolve();
+
+resize();
+window.addEventListener('resize', () => { resize(); draw(0); });
+
+// Live preview when you open the file yourself (render.mjs adds ?render=1 and drives seek instead).
+if (!location.search.includes('render=1')) {
+  let f = 0;
+  const loop = () => { draw(f); f = (f + 1) % FILM.frames; requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+} else {
+  draw(0);
+}
+</script>
+</body>
+</html>

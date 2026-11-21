@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>animation audio template</title></head>
+<body>
+<script>
+// THE AUDIO CONTRACT (read by: node scripts/render.mjs audio template-audio.html --out out/music.wav)
+//   window.renderAudio(sampleRate, seconds) -> Promise<AudioBuffer>
+// Everything is synthesised with an OfflineAudioContext: no samples, no downloads, same result every time.
+// Put the cue times (shot starts, hits) in the same timeline the picture uses, so sound lands on motion.
+
+window.FILM = { fps: 30, frames: 60 };
+const CUES = [ { t: 1.0, kind: 'whoosh' } ]; // shot 2 push in the picture template
+
+function noiseBuffer(ctx, seconds, seed = 1) {
+  const b = ctx.createBuffer(1, Math.ceil(seconds * ctx.sampleRate), ctx.sampleRate);
+  const d = b.getChannelData(0);
+  let s = seed;
+  for (let i = 0; i < d.length; i++) { s = (s * 16807) % 2147483647; d[i] = (s / 2147483647) * 2 - 1; }
+  return b;
+}
+
+function pad(ctx, out, freq, t0, t1) {
+  // Two detuned saws through a slow low pass: a warm bed.
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(0.12, t0 + 0.6);
+  g.gain.setValueAtTime(0.12, t1 - 0.4);
+  g.gain.linearRampToValueAtTime(0, t1);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.Q.value = 0.7;
+  lp.frequency.setValueAtTime(500, t0);
+  lp.frequency.linearRampToValueAtTime(1800, t1);
+  lp.connect(g); g.connect(out);
+  for (const det of [-7, 7]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth'; o.frequency.value = freq; o.detune.value = det;
+    o.connect(lp); o.start(t0); o.stop(t1);
+  }
+}
+
+function whoosh(ctx, out, t) {
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, 0.8, 99);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(300, t);
+  bp.frequency.exponentialRampToValueAtTime(3500, t + 0.5);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.5, t + 0.35);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+  src.connect(bp); bp.connect(g); g.connect(out);
+  src.start(t);
+}
+
+window.renderAudio = async (sampleRate, seconds) => {
+  const ctx = new OfflineAudioContext(2, Math.ceil(sampleRate * seconds), sampleRate);
+  const master = ctx.createGain();
+  master.gain.value = 0.9;
+  master.connect(ctx.destination);
+  for (const f of [110, 164.81, 220, 277.18]) pad(ctx, master, f, 0, seconds); // A major add9 feel
+  for (const c of CUES) if (c.kind === 'whoosh') whoosh(ctx, master, c.t);
+  return ctx.startRendering();
+};
+</script>
+</body>
+</html>
